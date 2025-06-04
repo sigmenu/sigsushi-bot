@@ -27,14 +27,22 @@ class MultiRestaurantBot {
             credentials: true
         }));
         
+        // Socket.IO configuração específica para VPS
         this.io = socketIo(this.server, {
             cors: {
                 origin: '*',
                 methods: ['GET', 'POST'],
-                credentials: true
+                allowedHeaders: ['Content-Type'],
+                credentials: false
             },
             allowEIO3: true,
-            transports: ['websocket', 'polling']
+            transports: ['polling', 'websocket'], // Polling primeiro para VPS
+            pingTimeout: 60000,
+            pingInterval: 25000,
+            upgradeTimeout: 30000,
+            maxHttpBufferSize: 1e6,
+            serveClient: true,
+            path: '/socket.io/'
         });
         
         this.port = process.env.PORT || 3000;
@@ -61,10 +69,18 @@ class MultiRestaurantBot {
             console.log(`🌐 Sistema Multi-Restaurante ativo em: http://0.0.0.0:${this.port}`);
             console.log(`👤 Admin: http://0.0.0.0:${this.port}/admin`);
             console.log(`🔥 [SERVER DEBUG] Server bound to all interfaces (0.0.0.0)`);
-            console.log(`🔥 [SERVER DEBUG] Test routes available:`);
+            console.log(`🔥 [WEBSOCKET DEBUG] Socket.IO config:`);
+            console.log(`   - Transports: polling, websocket`);
+            console.log(`   - CORS: enabled for all origins`);
+            console.log(`   - Path: /socket.io/`);
+            console.log(`   - Polling first for VPS compatibility`);
+            console.log(`🔥 [SERVER DEBUG] Available routes:`);
             console.log(`   - GET /test-qr/[restaurantId] - Force QR generation`);
             console.log(`   - GET /test-websocket - Test WebSocket`);
             console.log(`   - GET /debug-full - Full debug info`);
+            console.log(`   - GET /debug - Redirect to debug-full`);
+            console.log(`   - GET /socket-test - Dedicated WebSocket test page`);
+            console.log(`   - GET /health - Health check`);
         });
 
         this.server.on('error', (error) => {
@@ -247,7 +263,12 @@ class MultiRestaurantBot {
                 server: {
                     port: this.port,
                     clients: this.io.engine.clientsCount,
-                    restaurants: this.restaurants.size
+                    restaurants: this.restaurants.size,
+                    socketioConfig: {
+                        transports: ['polling', 'websocket'],
+                        cors: 'enabled',
+                        path: '/socket.io/'
+                    }
                 },
                 restaurants: {},
                 environment: {
@@ -255,6 +276,12 @@ class MultiRestaurantBot {
                     platform: process.platform,
                     uptime: process.uptime(),
                     memory: process.memoryUsage()
+                },
+                network: {
+                    ip: req.ip,
+                    host: req.get('host'),
+                    userAgent: req.get('user-agent'),
+                    origin: req.get('origin')
                 }
             };
             
@@ -268,15 +295,126 @@ class MultiRestaurantBot {
             
             res.json(debug);
         });
+
+        // ROTA /debug (redirecionamento para compatibilidade)
+        this.app.get('/debug', (req, res) => {
+            res.redirect('/debug-full');
+        });
+
+        // HEALTH CHECK SIMPLES
+        this.app.get('/health', (req, res) => {
+            res.json({
+                status: 'ok',
+                timestamp: Date.now(),
+                uptime: process.uptime(),
+                clients: this.io.engine.clientsCount,
+                message: 'Server is running'
+            });
+        });
+
+        // ROTA PARA TESTAR CONECTIVIDADE WEBSOCKET ESPECÍFICA
+        this.app.get('/socket-test', (req, res) => {
+            res.send(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>WebSocket Test - VPS</title>
+                    <style>
+                        body { font-family: Arial; padding: 20px; }
+                        .log { background: #f0f0f0; padding: 10px; margin: 10px 0; border-radius: 5px; }
+                        .error { background: #ffe6e6; }
+                        .success { background: #e6ffe6; }
+                        button { padding: 10px 20px; margin: 5px; border: none; border-radius: 5px; cursor: pointer; }
+                        .test-btn { background: #007bff; color: white; }
+                    </style>
+                </head>
+                <body>
+                    <h1>🔥 WebSocket Test - VPS (${req.get('host')})</h1>
+                    <div id="logs"></div>
+                    <button class="test-btn" onclick="testConnection()">🧪 Test Connection</button>
+                    <button class="test-btn" onclick="clearLogs()">🗑️ Clear Logs</button>
+                    
+                    <script src="/socket.io/socket.io.js"></script>
+                    <script>
+                        let socket;
+                        
+                        function log(message, type = 'log') {
+                            const div = document.createElement('div');
+                            div.className = 'log ' + type;
+                            div.innerHTML = new Date().toLocaleTimeString() + ' - ' + message;
+                            document.getElementById('logs').appendChild(div);
+                            console.log(message);
+                        }
+                        
+                        function clearLogs() {
+                            document.getElementById('logs').innerHTML = '';
+                        }
+                        
+                        function testConnection() {
+                            log('🔄 Iniciando teste de conexão WebSocket...');
+                            
+                            socket = io({
+                                transports: ['polling', 'websocket'],
+                                timeout: 20000,
+                                forceNew: true
+                            });
+                            
+                            socket.on('connect', () => {
+                                log('✅ WebSocket conectado! ID: ' + socket.id, 'success');
+                                log('🔗 Transport: ' + socket.io.engine.transport.name, 'success');
+                                
+                                // Teste ping
+                                socket.emit('ping_test', { message: 'Test from socket-test page' });
+                            });
+                            
+                            socket.on('connect_error', (error) => {
+                                log('❌ Erro de conexão: ' + error.message, 'error');
+                            });
+                            
+                            socket.on('disconnect', (reason) => {
+                                log('🔌 Desconectado: ' + reason, 'error');
+                            });
+                            
+                            socket.on('pong_test', (data) => {
+                                log('🏓 Pong recebido: ' + JSON.stringify(data), 'success');
+                            });
+                            
+                            socket.on('connection_confirmed', (data) => {
+                                log('✅ Conexão confirmada: ' + JSON.stringify(data), 'success');
+                            });
+                        }
+                        
+                        // Auto-teste na abertura da página
+                        window.onload = () => {
+                            setTimeout(testConnection, 1000);
+                        };
+                    </script>
+                </body>
+                </html>
+            `);
+        });
     }
 
     setupWebSocket() {
+        console.log('🔥 [WEBSOCKET INIT] Setting up Socket.IO event handlers...');
+        
+        this.io.engine.on('initial_headers', (headers, req) => {
+            console.log('🔥 [WEBSOCKET] Initial headers received from:', req.headers.host);
+        });
+
+        this.io.engine.on('headers', (headers, req) => {
+            console.log('🔥 [WEBSOCKET] Headers processed for:', req.headers.host);
+        });
+
         this.io.on('connection', (socket) => {
-            console.log('🔥 [WS DEBUG 1] Cliente conectado ao dashboard');
+            console.log('🔥 [WS DEBUG 1] ✅ CLIENTE CONECTADO!');
             console.log(`🔥 [WS DEBUG 2] Total clients: ${this.io.engine.clientsCount}`);
             console.log(`🔥 [WS DEBUG 3] Socket ID: ${socket.id}`);
             console.log(`🔥 [WS DEBUG 4] Client IP: ${socket.handshake.address}`);
-            console.log(`🔥 [WS DEBUG 5] Client headers:`, socket.handshake.headers);
+            console.log(`🔥 [WS DEBUG 5] Transport: ${socket.conn.transport.name}`);
+            console.log(`🔥 [WS DEBUG 6] Client headers:`, socket.handshake.headers.host);
+            console.log(`🔥 [WS DEBUG 7] Origin: ${socket.handshake.headers.origin || 'no-origin'}`);
+            console.log(`🔥 [WS DEBUG 8] User-Agent: ${socket.handshake.headers['user-agent']?.substring(0, 50)}...`);
 
             // Envia confirmação de conexão
             socket.emit('connection_confirmed', {

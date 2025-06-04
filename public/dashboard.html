@@ -388,7 +388,21 @@
 
         function connectWebSocket() {
             console.log('🔥 [FRONTEND] Iniciando conexão WebSocket...');
-            socket = io();
+            console.log('🔥 [FRONTEND] Host:', window.location.host);
+            console.log('🔥 [FRONTEND] Protocol:', window.location.protocol);
+            
+            // Configuração específica para VPS com polling primeiro
+            socket = io({
+                transports: ['polling', 'websocket'],
+                timeout: 20000,
+                forceNew: false,
+                reconnection: true,
+                reconnectionDelay: 1000,
+                reconnectionAttempts: 5,
+                maxReconnectionAttempts: 5
+            });
+            
+            console.log('🔥 [FRONTEND] Socket.IO configurado com polling primeiro');
 
             socket.on('connect', () => {
                 console.log('🔥 [FRONTEND] ✅ Conectado ao WebSocket');
