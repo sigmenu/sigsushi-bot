@@ -272,42 +272,89 @@ class MultiRestaurantBot {
         });
 
         // ROTA PARA DEBUG COMPLETO
-        this.app.get('/debug-full', (req, res) => {
-            const debug = {
-                server: {
-                    port: this.port,
-                    clients: this.io.engine.clientsCount,
-                    restaurants: this.restaurants.size,
-                    socketioConfig: {
-                        transports: ['polling', 'websocket'],
-                        cors: 'enabled',
-                        path: '/socket.io/'
+        this.app.get('/debug-full', async (req, res) => {
+            console.log('🔥 [DEBUG-FULL] Route called');
+            
+            try {
+                // Get restaurants from database (actual data)
+                const dbRestaurants = await this.db.getAllRestaurants();
+                console.log('🔥 [DEBUG-FULL] DB restaurants:', dbRestaurants.length);
+                
+                const debug = {
+                    server: {
+                        port: this.port,
+                        clients: this.io.engine.clientsCount,
+                        restaurants: dbRestaurants.length, // Use actual DB count
+                        runningBots: this.restaurants.size, // Running bot instances
+                        socketioConfig: {
+                            transports: ['polling', 'websocket'],
+                            cors: 'enabled',
+                            path: '/socket.io/'
+                        },
+                        instanceId: this.instanceId || 'no-id'
+                    },
+                    restaurants: {},
+                    database: {
+                        restaurantsInDB: dbRestaurants.length,
+                        restaurantsLoaded: this.restaurantsLoaded || false,
+                        lastLoadTime: this.lastLoadTime || 'never'
+                    },
+                    environment: {
+                        nodeVersion: process.version,
+                        platform: process.platform,
+                        uptime: process.uptime(),
+                        memory: process.memoryUsage(),
+                        pid: process.pid
+                    },
+                    network: {
+                        ip: req.ip,
+                        host: req.get('host'),
+                        userAgent: req.get('user-agent'),
+                        origin: req.get('origin')
                     }
-                },
-                restaurants: {},
-                environment: {
-                    nodeVersion: process.version,
-                    platform: process.platform,
-                    uptime: process.uptime(),
-                    memory: process.memoryUsage()
-                },
-                network: {
-                    ip: req.ip,
-                    host: req.get('host'),
-                    userAgent: req.get('user-agent'),
-                    origin: req.get('origin')
-                }
-            };
-            
-            this.restaurants.forEach((bot, id) => {
-                debug.restaurants[id] = {
-                    state: bot.state,
-                    connected: bot.client.info ? true : false,
-                    name: bot.restaurant.name
                 };
-            });
-            
-            res.json(debug);
+                
+                // Add database restaurants (actual data)
+                dbRestaurants.forEach((restaurant, index) => {
+                    const botInstance = this.restaurants.get(restaurant.id);
+                    debug.restaurants[restaurant.id] = {
+                        name: restaurant.name,
+                        menu_url: restaurant.menu_url,
+                        session_active: restaurant.session_active,
+                        created_at: restaurant.created_at,
+                        state: botInstance ? botInstance.state : 'not-running',
+                        connected: botInstance && botInstance.client.info ? true : false,
+                        source: 'database'
+                    };
+                });
+                
+                // Add any additional running bots not in database
+                this.restaurants.forEach((bot, id) => {
+                    if (!debug.restaurants[id]) {
+                        debug.restaurants[id] = {
+                            name: bot.restaurant?.name || 'unknown',
+                            state: bot.state,
+                            connected: bot.client.info ? true : false,
+                            source: 'memory-only'
+                        };
+                    }
+                });
+                
+                console.log('🔥 [DEBUG-FULL] Returning debug data with', Object.keys(debug.restaurants).length, 'restaurants');
+                res.json(debug);
+                
+            } catch (error) {
+                console.error('🔥 [DEBUG-FULL] Error:', error);
+                res.status(500).json({
+                    error: 'Failed to get debug data',
+                    message: error.message,
+                    server: {
+                        port: this.port,
+                        clients: this.io.engine.clientsCount,
+                        restaurants: this.restaurants.size
+                    }
+                });
+            }
         });
 
         // ROTA /debug (redirecionamento para compatibilidade)
