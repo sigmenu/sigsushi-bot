@@ -79,6 +79,7 @@ class MultiRestaurantBot {
             console.log(`   - GET /test-websocket - Test WebSocket`);
             console.log(`   - GET /debug-full - Full debug info`);
             console.log(`   - GET /debug - Redirect to debug-full`);
+            console.log(`   - GET /debug-dashboard - COMPREHENSIVE DEBUG DASHBOARD`);
             console.log(`   - GET /socket-test - Dedicated WebSocket test page`);
             console.log(`   - GET /health - Health check`);
             console.log(`   - POST /api/regenerate-qr/[restaurantId] - Regenerate QR Code`);
@@ -440,6 +441,506 @@ class MultiRestaurantBot {
                     error: error.message
                 });
             }
+        });
+
+        // DEBUG DASHBOARD COMPLETO
+        this.app.get('/debug-dashboard', (req, res) => {
+            res.send(`
+                <!DOCTYPE html>
+                <html lang="pt-BR">
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>🔥 Debug Dashboard - VPS Diagnostics</title>
+                    <style>
+                        * { margin: 0; padding: 0; box-sizing: border-box; }
+                        body { 
+                            font-family: 'Courier New', monospace; 
+                            background: #1a1a1a; 
+                            color: #00ff00; 
+                            padding: 20px;
+                            font-size: 14px;
+                        }
+                        .header { 
+                            text-align: center; 
+                            margin-bottom: 30px; 
+                            border-bottom: 2px solid #00ff00; 
+                            padding-bottom: 20px;
+                        }
+                        .title { 
+                            font-size: 2rem; 
+                            margin-bottom: 10px; 
+                            text-shadow: 0 0 10px #00ff00;
+                        }
+                        .subtitle { 
+                            color: #ffff00; 
+                            font-size: 1rem;
+                        }
+                        .dashboard { 
+                            display: grid; 
+                            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); 
+                            gap: 20px; 
+                            margin-bottom: 30px;
+                        }
+                        .card { 
+                            background: #2a2a2a; 
+                            border: 1px solid #00ff00; 
+                            border-radius: 8px; 
+                            padding: 20px;
+                            box-shadow: 0 0 15px rgba(0, 255, 0, 0.3);
+                        }
+                        .card-title { 
+                            color: #00ffff; 
+                            font-size: 1.2rem; 
+                            margin-bottom: 15px; 
+                            border-bottom: 1px solid #00ffff;
+                            padding-bottom: 5px;
+                        }
+                        .status-item { 
+                            display: flex; 
+                            justify-content: space-between; 
+                            margin: 8px 0; 
+                            padding: 5px;
+                            background: #333;
+                            border-radius: 4px;
+                        }
+                        .status-label { color: #ffff00; }
+                        .status-value { color: #00ff00; font-weight: bold; }
+                        .status-error { color: #ff0000; }
+                        .status-warning { color: #ffa500; }
+                        .btn { 
+                            background: #00ff00; 
+                            color: #000; 
+                            border: none; 
+                            padding: 8px 15px; 
+                            margin: 5px; 
+                            border-radius: 4px; 
+                            cursor: pointer; 
+                            font-family: inherit;
+                            font-weight: bold;
+                        }
+                        .btn:hover { 
+                            background: #00cc00; 
+                            box-shadow: 0 0 10px #00ff00;
+                        }
+                        .btn-danger { background: #ff0000; color: white; }
+                        .btn-warning { background: #ffa500; color: black; }
+                        .btn-info { background: #00ffff; color: black; }
+                        .console { 
+                            background: #000; 
+                            border: 2px solid #00ff00; 
+                            border-radius: 8px; 
+                            padding: 15px; 
+                            height: 400px; 
+                            overflow-y: auto;
+                            font-family: 'Courier New', monospace;
+                            font-size: 12px;
+                        }
+                        .console-title { 
+                            color: #00ffff; 
+                            margin-bottom: 10px; 
+                            font-size: 1.1rem;
+                        }
+                        .log-entry { 
+                            margin: 2px 0; 
+                            padding: 2px 5px;
+                            border-radius: 3px;
+                        }
+                        .log-info { color: #00ff00; }
+                        .log-warning { color: #ffa500; background: #332200; }
+                        .log-error { color: #ff0000; background: #330000; }
+                        .log-qr { color: #ff00ff; background: #220022; }
+                        .log-ws { color: #00ffff; background: #002222; }
+                        .auto-refresh { 
+                            color: #ffff00; 
+                            text-align: center; 
+                            margin: 20px 0;
+                            font-size: 12px;
+                        }
+                        .timestamp { color: #888; font-size: 11px; }
+                        .refresh-indicator { 
+                            display: inline-block; 
+                            animation: pulse 1s infinite;
+                        }
+                        @keyframes pulse { 
+                            0% { opacity: 1; } 
+                            50% { opacity: 0.5; } 
+                            100% { opacity: 1; } 
+                        }
+                        .grid-2 { 
+                            display: grid; 
+                            grid-template-columns: 1fr 1fr; 
+                            gap: 20px;
+                        }
+                        @media (max-width: 768px) { 
+                            .dashboard { grid-template-columns: 1fr; }
+                            .grid-2 { grid-template-columns: 1fr; }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="header">
+                        <div class="title">🔥 DEBUG DASHBOARD</div>
+                        <div class="subtitle">VPS Server Diagnostics - ${req.get('host')}</div>
+                        <div class="auto-refresh">
+                            <span class="refresh-indicator">●</span> Auto-refresh ativo (2s)
+                        </div>
+                    </div>
+
+                    <div class="dashboard">
+                        <!-- Server Status -->
+                        <div class="card">
+                            <div class="card-title">🖥️ SERVER STATUS</div>
+                            <div id="server-status">
+                                <div class="status-item">
+                                    <span class="status-label">Status:</span>
+                                    <span class="status-value" id="server-online">LOADING...</span>
+                                </div>
+                                <div class="status-item">
+                                    <span class="status-label">Porta:</span>
+                                    <span class="status-value">${this.port}</span>
+                                </div>
+                                <div class="status-item">
+                                    <span class="status-label">Uptime:</span>
+                                    <span class="status-value" id="server-uptime">LOADING...</span>
+                                </div>
+                                <div class="status-item">
+                                    <span class="status-label">Memória:</span>
+                                    <span class="status-value" id="server-memory">LOADING...</span>
+                                </div>
+                                <div class="status-item">
+                                    <span class="status-label">Node.js:</span>
+                                    <span class="status-value">${process.version}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- WebSocket Status -->
+                        <div class="card">
+                            <div class="card-title">📡 WEBSOCKET STATUS</div>
+                            <div id="websocket-status">
+                                <div class="status-item">
+                                    <span class="status-label">Clientes Conectados:</span>
+                                    <span class="status-value" id="ws-clients">LOADING...</span>
+                                </div>
+                                <div class="status-item">
+                                    <span class="status-label">Transports:</span>
+                                    <span class="status-value">polling, websocket</span>
+                                </div>
+                                <div class="status-item">
+                                    <span class="status-label">CORS:</span>
+                                    <span class="status-value">enabled (*)</span>
+                                </div>
+                                <div class="status-item">
+                                    <span class="status-label">Path:</span>
+                                    <span class="status-value">/socket.io/</span>
+                                </div>
+                                <div class="status-item">
+                                    <span class="status-label">Status:</span>
+                                    <span class="status-value" id="ws-status">LOADING...</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- WhatsApp Clients -->
+                        <div class="card">
+                            <div class="card-title">📱 WHATSAPP CLIENTS</div>
+                            <div id="whatsapp-status">
+                                <div class="status-item">
+                                    <span class="status-label">Total Restaurantes:</span>
+                                    <span class="status-value" id="total-restaurants">LOADING...</span>
+                                </div>
+                                <div class="status-item">
+                                    <span class="status-label">Clients Ativos:</span>
+                                    <span class="status-value" id="active-clients">LOADING...</span>
+                                </div>
+                                <div class="status-item">
+                                    <span class="status-label">QR Pendentes:</span>
+                                    <span class="status-value" id="pending-qr">LOADING...</span>
+                                </div>
+                                <div id="clients-detail"></div>
+                            </div>
+                        </div>
+
+                        <!-- Test Tools -->
+                        <div class="card">
+                            <div class="card-title">🧪 TEST TOOLS</div>
+                            <button class="btn" onclick="testWebSocketConnection()">📡 Test WebSocket</button>
+                            <button class="btn" onclick="forceQRGeneration()">📱 Force QR Generation</button>
+                            <button class="btn btn-warning" onclick="regenerateAllQR()">🔄 Regenerate All QR</button>
+                            <button class="btn btn-danger" onclick="clearAllSessions()">🗑️ Clear Sessions</button>
+                            <br><br>
+                            <button class="btn btn-info" onclick="downloadLogs()">📥 Download Logs</button>
+                            <button class="btn btn-info" onclick="exportDebugData()">📊 Export Debug Data</button>
+                        </div>
+
+                        <!-- Network Info -->
+                        <div class="card">
+                            <div class="card-title">🌐 NETWORK INFO</div>
+                            <div id="network-info">
+                                <div class="status-item">
+                                    <span class="status-label">Client IP:</span>
+                                    <span class="status-value">${req.ip}</span>
+                                </div>
+                                <div class="status-item">
+                                    <span class="status-label">Host:</span>
+                                    <span class="status-value">${req.get('host')}</span>
+                                </div>
+                                <div class="status-item">
+                                    <span class="status-label">User-Agent:</span>
+                                    <span class="status-value" style="font-size: 11px;">${req.get('user-agent')?.substring(0, 30)}...</span>
+                                </div>
+                                <div class="status-item">
+                                    <span class="status-label">Protocol:</span>
+                                    <span class="status-value">${req.protocol}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Quick Actions -->
+                        <div class="card">
+                            <div class="card-title">⚡ QUICK ACTIONS</div>
+                            <div class="status-item">
+                                <button class="btn" onclick="window.open('/debug-full', '_blank')">📊 Full Debug JSON</button>
+                                <button class="btn" onclick="window.open('/socket-test', '_blank')">🔧 Socket Test Page</button>
+                            </div>
+                            <div class="status-item">
+                                <button class="btn" onclick="window.open('/health', '_blank')">❤️ Health Check</button>
+                                <button class="btn" onclick="window.open('/', '_blank')">🏠 Main Dashboard</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Real-time Console -->
+                    <div class="card">
+                        <div class="console-title">📋 REAL-TIME DEBUG CONSOLE</div>
+                        <div class="console" id="debug-console">
+                            <div class="log-entry log-info">🔥 Debug Dashboard initialized...</div>
+                            <div class="log-entry log-info">📡 Starting real-time monitoring...</div>
+                        </div>
+                        <div style="margin-top: 10px;">
+                            <button class="btn" onclick="clearConsole()">🗑️ Clear Console</button>
+                            <button class="btn" onclick="toggleAutoScroll()">📜 Toggle Auto-scroll</button>
+                            <select id="log-filter" onchange="filterLogs()">
+                                <option value="all">All Logs</option>
+                                <option value="qr">QR Logs Only</option>
+                                <option value="ws">WebSocket Logs Only</option>
+                                <option value="error">Errors Only</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <script src="/socket.io/socket.io.js"></script>
+                    <script>
+                        let socket;
+                        let autoScroll = true;
+                        let logFilter = 'all';
+                        let logs = [];
+
+                        // Initialize debug dashboard
+                        document.addEventListener('DOMContentLoaded', function() {
+                            addLog('info', '🔥 Debug Dashboard loaded');
+                            connectWebSocket();
+                            startPeriodicUpdates();
+                        });
+
+                        function connectWebSocket() {
+                            addLog('info', '📡 Connecting to WebSocket...');
+                            
+                            socket = io({
+                                transports: ['polling', 'websocket'],
+                                timeout: 20000
+                            });
+
+                            socket.on('connect', () => {
+                                addLog('ws', '✅ WebSocket connected: ' + socket.id);
+                                document.getElementById('ws-status').textContent = 'CONNECTED';
+                                document.getElementById('ws-status').className = 'status-value';
+                            });
+
+                            socket.on('qr', (data) => {
+                                addLog('qr', '📱 QR received: ' + data.restaurantId + ' (Length: ' + data.qrData?.length + ')');
+                            });
+
+                            socket.on('qr_debug', (data) => {
+                                addLog('qr', '🐛 QR Debug: ' + data.message);
+                            });
+
+                            socket.on('connection_confirmed', (data) => {
+                                addLog('ws', '✅ Connection confirmed by server');
+                            });
+
+                            socket.on('disconnect', (reason) => {
+                                addLog('error', '❌ WebSocket disconnected: ' + reason);
+                                document.getElementById('ws-status').textContent = 'DISCONNECTED';
+                                document.getElementById('ws-status').className = 'status-error';
+                            });
+
+                            socket.on('connect_error', (error) => {
+                                addLog('error', '❌ WebSocket connection error: ' + error.message);
+                                document.getElementById('ws-status').textContent = 'ERROR';
+                                document.getElementById('ws-status').className = 'status-error';
+                            });
+                        }
+
+                        function addLog(type, message) {
+                            const timestamp = new Date().toLocaleTimeString();
+                            const logEntry = {
+                                type: type,
+                                message: message,
+                                timestamp: timestamp
+                            };
+                            
+                            logs.unshift(logEntry);
+                            if (logs.length > 100) logs = logs.slice(0, 100); // Keep last 100 logs
+                            
+                            updateConsole();
+                        }
+
+                        function updateConsole() {
+                            const console = document.getElementById('debug-console');
+                            const filteredLogs = logs.filter(log => {
+                                if (logFilter === 'all') return true;
+                                return log.type === logFilter;
+                            });
+                            
+                            console.innerHTML = filteredLogs.map(log => 
+                                '<div class="log-entry log-' + log.type + '">' +
+                                '<span class="timestamp">[' + log.timestamp + ']</span> ' +
+                                log.message + '</div>'
+                            ).join('');
+                            
+                            if (autoScroll) {
+                                console.scrollTop = 0;
+                            }
+                        }
+
+                        function startPeriodicUpdates() {
+                            updateServerStats();
+                            setInterval(updateServerStats, 2000);
+                        }
+
+                        async function updateServerStats() {
+                            try {
+                                const response = await fetch('/debug-full');
+                                const data = await response.json();
+                                
+                                // Update server status
+                                document.getElementById('server-online').textContent = 'ONLINE';
+                                document.getElementById('server-uptime').textContent = Math.floor(data.environment.uptime / 60) + 'm';
+                                document.getElementById('server-memory').textContent = Math.floor(data.environment.memory.used / 1024 / 1024) + 'MB';
+                                
+                                // Update WebSocket status
+                                document.getElementById('ws-clients').textContent = data.server.clients;
+                                
+                                // Update WhatsApp status
+                                document.getElementById('total-restaurants').textContent = data.server.restaurants;
+                                
+                                let activeClients = 0;
+                                let pendingQR = 0;
+                                let detailHTML = '';
+                                
+                                Object.keys(data.restaurants).forEach(id => {
+                                    const rest = data.restaurants[id];
+                                    if (rest.connected) activeClients++;
+                                    if (rest.state === 'qr_ready') pendingQR++;
+                                    
+                                    detailHTML += '<div class="status-item" style="font-size: 11px;">' +
+                                        '<span class="status-label">' + rest.name + ':</span>' +
+                                        '<span class="' + (rest.connected ? 'status-value' : 'status-error') + '">' + 
+                                        rest.state + '</span></div>';
+                                });
+                                
+                                document.getElementById('active-clients').textContent = activeClients;
+                                document.getElementById('pending-qr').textContent = pendingQR;
+                                document.getElementById('clients-detail').innerHTML = detailHTML;
+                                
+                                addLog('info', '📊 Stats updated - Clients: ' + data.server.clients + ', Restaurants: ' + data.server.restaurants);
+                                
+                            } catch (error) {
+                                addLog('error', '❌ Failed to update stats: ' + error.message);
+                                document.getElementById('server-online').textContent = 'ERROR';
+                                document.getElementById('server-online').className = 'status-error';
+                            }
+                        }
+
+                        // Test Functions
+                        async function testWebSocketConnection() {
+                            addLog('info', '🧪 Testing WebSocket connection...');
+                            socket.emit('ping_test', { message: 'Debug dashboard test', timestamp: Date.now() });
+                        }
+
+                        async function forceQRGeneration() {
+                            addLog('info', '🧪 Forcing QR generation...');
+                            try {
+                                const response = await fetch('/test-qr/debug-test');
+                                const result = await response.json();
+                                addLog('qr', '✅ QR generation result: ' + result.message);
+                            } catch (error) {
+                                addLog('error', '❌ QR generation failed: ' + error.message);
+                            }
+                        }
+
+                        async function regenerateAllQR() {
+                            addLog('warning', '🔄 Regenerating all QR codes...');
+                            try {
+                                const response = await fetch('/api/regenerate-qr', { method: 'POST' });
+                                const result = await response.json();
+                                addLog('qr', '✅ QR regeneration: ' + result.message);
+                            } catch (error) {
+                                addLog('error', '❌ QR regeneration failed: ' + error.message);
+                            }
+                        }
+
+                        function clearAllSessions() {
+                            addLog('warning', '🗑️ Clear sessions not implemented yet');
+                        }
+
+                        function clearConsole() {
+                            logs = [];
+                            updateConsole();
+                            addLog('info', '🗑️ Console cleared');
+                        }
+
+                        function toggleAutoScroll() {
+                            autoScroll = !autoScroll;
+                            addLog('info', '📜 Auto-scroll: ' + (autoScroll ? 'ON' : 'OFF'));
+                        }
+
+                        function filterLogs() {
+                            logFilter = document.getElementById('log-filter').value;
+                            updateConsole();
+                            addLog('info', '🔍 Filter changed to: ' + logFilter);
+                        }
+
+                        function downloadLogs() {
+                            const logsText = logs.map(log => '[' + log.timestamp + '] [' + log.type.toUpperCase() + '] ' + log.message).join('\\n');
+                            const blob = new Blob([logsText], { type: 'text/plain' });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = 'debug-logs-' + new Date().toISOString().slice(0, 19) + '.txt';
+                            a.click();
+                            URL.revokeObjectURL(url);
+                        }
+
+                        function exportDebugData() {
+                            fetch('/debug-full')
+                                .then(response => response.json())
+                                .then(data => {
+                                    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                                    const url = URL.createObjectURL(blob);
+                                    const a = document.createElement('a');
+                                    a.href = url;
+                                    a.download = 'debug-data-' + new Date().toISOString().slice(0, 19) + '.json';
+                                    a.click();
+                                    URL.revokeObjectURL(url);
+                                });
+                        }
+                    </script>
+                </body>
+                </html>
+            `);
         });
 
         // ROTA PARA TESTAR CONECTIVIDADE WEBSOCKET ESPECÍFICA
