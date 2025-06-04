@@ -1,0 +1,42 @@
+{
+  "name": "restaurante-whatsapp-bot",
+  "version": "1.0.0",
+  "description": "Chatbot simples para WhatsApp - Restaurante",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node start-system.js",
+    "start:single": "node bot.js",
+    "dev": "nodemon start-system.js",
+    "dev:single": "nodemon bot.js",
+    "test": "node test-system.js",
+    "web": "node simple-server.js",
+    "test-web": "node simple-server.js",
+    "simple": "node bot-simple.js",
+    "safe": "node bot-simple.js"
+  },
+  "keywords": [
+    "whatsapp",
+    "bot",
+    "restaurante",
+    "delivery",
+    "nodejs"
+  ],
+  "author": "Seu Nome",
+  "license": "MIT",
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "express": "^4.18.2",
+    "puppeteer": "^24.10.0",
+    "qrcode": "^1.5.3",
+    "qrcode-terminal": "^0.12.0",
+    "socket.io": "^4.7.2",
+    "uuid": "^11.1.0",
+    "whatsapp-web.js": "^1.23.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}

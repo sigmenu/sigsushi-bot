@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SigSushi Bot - Dashboard Multi-Restaurante</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #25D366;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 15px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: #25D366;
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 30px 20px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 5px 25px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #25D366;
+            margin-bottom: 10px;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 1.1rem;
+        }
+
+        .restaurants-section {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 5px 25px rgba(0, 0, 0, 0.1);
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .restaurants-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+        }
+
+        .restaurant-card {
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            padding: 20px;
+            transition: all 0.3s ease;
+            background: #f8f9fa;
+        }
+
+        .restaurant-card:hover {
+            border-color: #25D366;
+            box-shadow: 0 5px 15px rgba(37, 211, 102, 0.2);
+        }
+
+        .restaurant-card.connected {
+            border-color: #28a745;
+            background: #f0fff4;
+        }
+
+        .restaurant-card.connecting {
+            border-color: #ffc107;
+            background: #fffdf0;
+        }
+
+        .restaurant-card.error {
+            border-color: #dc3545;
+            background: #fff0f0;
+        }
+
+        .restaurant-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 15px;
+        }
+
+        .restaurant-name {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .restaurant-status {
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+
+        .status-connected {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-connecting {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status-disconnected {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .restaurant-info {
+            color: #666;
+            font-size: 0.9rem;
+            margin-bottom: 15px;
+        }
+
+        .restaurant-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 0.8rem;
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-warning {
+            background: #ffc107;
+            color: #212529;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-info {
+            background: #17a2b8;
+            color: white;
+        }
+
+        .qr-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .qr-content {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+        }
+
+        .qr-code {
+            margin: 20px 0;
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #666;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+        }
+
+        .empty-state-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                gap: 15px;
+            }
+
+            .restaurants-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .restaurant-actions {
+                justify-content: center;
+            }
+        }
+
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #25D366;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 8px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-content">
+            <div class="logo">🤖 SigSushi Bot - Dashboard</div>
+            <div class="header-actions">
+                <a href="/admin" class="btn btn-primary">👨‍💼 Admin</a>
+                <button class="btn btn-secondary" onclick="refreshData()">🔄 Atualizar</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number" id="total-restaurants">0</div>
+                <div class="stat-label">Restaurantes</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="connected-bots">0</div>
+                <div class="stat-label">Bots Conectados</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="pending-qr">0</div>
+                <div class="stat-label">Aguardando QR</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="total-sessions">0</div>
+                <div class="stat-label">Sessões Ativas</div>
+            </div>
+        </div>
+
+        <div class="restaurants-section">
+            <div class="section-header">
+                <h2 class="section-title">Restaurantes</h2>
+                <a href="/admin" class="btn btn-primary">+ Novo Restaurante</a>
+            </div>
+            
+            <div id="restaurants-container">
+                <div class="loading-state" style="text-align: center; padding: 40px;">
+                    <div class="loading"></div>
+                    Carregando restaurantes...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal QR Code -->
+    <div id="qr-modal" class="qr-modal">
+        <div class="qr-content">
+            <button class="close-btn" onclick="closeQRModal()">&times;</button>
+            <h3 id="qr-restaurant-name">Conectar WhatsApp</h3>
+            <div class="qr-code" id="qr-code-container">
+                <div class="loading"></div>
+                Aguardando QR Code...
+            </div>
+            <p>Escaneie o QR Code com seu WhatsApp</p>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        let socket;
+        let restaurants = [];
+        let currentQRRestaurant = null;
+
+        // Inicialização
+        document.addEventListener('DOMContentLoaded', function() {
+            connectWebSocket();
+            loadRestaurants();
+        });
+
+        function connectWebSocket() {
+            socket = io();
+
+            socket.on('connect', () => {
+                console.log('🔗 Conectado ao WebSocket');
+            });
+
+            socket.on('qr', (data) => {
+                console.log('📱 QR Code recebido para:', data.restaurantId);
+                showQRCode(data.restaurantId, data.qrData);
+                updateRestaurantStatus(data.restaurantId, 'connecting');
+            });
+
+            socket.on('ready', (data) => {
+                console.log('✅ Bot conectado:', data.restaurantId);
+                updateRestaurantStatus(data.restaurantId, 'connected');
+                if (currentQRRestaurant === data.restaurantId) {
+                    closeQRModal();
+                }
+            });
+
+            socket.on('disconnected', (data) => {
+                console.log('🔌 Bot desconectado:', data.restaurantId);
+                updateRestaurantStatus(data.restaurantId, 'disconnected');
+            });
+
+            socket.on('auth_failure', (data) => {
+                console.log('❌ Falha na autenticação:', data.restaurantId);
+                updateRestaurantStatus(data.restaurantId, 'error');
+            });
+        }
+
+        async function loadRestaurants() {
+            try {
+                const response = await fetch('/api/restaurants');
+                restaurants = await response.json();
+                renderRestaurants();
+                updateStats();
+                loadStatus();
+            } catch (error) {
+                console.error('❌ Erro ao carregar restaurantes:', error);
+                showError('Erro ao carregar restaurantes');
+            }
+        }
+
+        async function loadStatus() {
+            try {
+                const response = await fetch('/api/status');
+                const status = await response.json();
+                
+                Object.keys(status).forEach(restaurantId => {
+                    const botStatus = status[restaurantId];
+                    let statusClass = 'disconnected';
+                    
+                    if (botStatus.connected) {
+                        statusClass = 'connected';
+                    } else if (botStatus.state === 'qr_ready' || botStatus.state === 'starting') {
+                        statusClass = 'connecting';
+                    }
+                    
+                    updateRestaurantStatus(restaurantId, statusClass);
+                });
+            } catch (error) {
+                console.error('❌ Erro ao carregar status:', error);
+            }
+        }
+
+        function renderRestaurants() {
+            const container = document.getElementById('restaurants-container');
+            
+            if (restaurants.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🏪</div>
+                        <h3>Nenhum restaurante cadastrado</h3>
+                        <p>Clique em "Novo Restaurante" para começar</p>
+                        <a href="/admin" class="btn btn-primary" style="margin-top: 20px;">+ Novo Restaurante</a>
+                    </div>
+                `;
+                return;
+            }
+
+            const grid = document.createElement('div');
+            grid.className = 'restaurants-grid';
+            
+            restaurants.forEach(restaurant => {
+                const card = createRestaurantCard(restaurant);
+                grid.appendChild(card);
+            });
+            
+            container.innerHTML = '';
+            container.appendChild(grid);
+        }
+
+        function createRestaurantCard(restaurant) {
+            const card = document.createElement('div');
+            card.className = 'restaurant-card';
+            card.id = `restaurant-${restaurant.id}`;
+            
+            card.innerHTML = `
+                <div class="restaurant-header">
+                    <div>
+                        <div class="restaurant-name">${restaurant.food_emoji} ${restaurant.name}</div>
+                        <div class="restaurant-info">${restaurant.opening_hours}</div>
+                    </div>
+                    <span class="restaurant-status status-disconnected" id="status-${restaurant.id}">
+                        Desconectado
+                    </span>
+                </div>
+                
+                <div class="restaurant-info">
+                    <strong>Cardápio:</strong> <a href="${restaurant.menu_url}" target="_blank">${restaurant.menu_url}</a>
+                </div>
+                
+                <div class="restaurant-actions">
+                    <button class="btn btn-success btn-sm" onclick="startBot('${restaurant.id}')">
+                        ▶️ Iniciar
+                    </button>
+                    <button class="btn btn-warning btn-sm" onclick="stopBot('${restaurant.id}')">
+                        ⏹️ Parar
+                    </button>
+                    <button class="btn btn-info btn-sm" onclick="showQRModal('${restaurant.id}', '${restaurant.name}')">
+                        📱 QR Code
+                    </button>
+                    <a href="/admin?edit=${restaurant.id}" class="btn btn-secondary btn-sm">
+                        ✏️ Editar
+                    </a>
+                </div>
+            `;
+            
+            return card;
+        }
+
+        function updateStats() {
+            document.getElementById('total-restaurants').textContent = restaurants.length;
+            // Outros stats serão atualizados via WebSocket
+        }
+
+        async function startBot(restaurantId) {
+            try {
+                const response = await fetch(`/api/restaurants/${restaurantId}/start`, {
+                    method: 'POST'
+                });
+                
+                if (response.ok) {
+                    console.log('✅ Bot iniciado:', restaurantId);
+                    updateRestaurantStatus(restaurantId, 'connecting');
+                    
+                    // Inscreve-se nas atualizações deste restaurante
+                    socket.emit('subscribe_restaurant', restaurantId);
+                } else {
+                    throw new Error('Erro ao iniciar bot');
+                }
+            } catch (error) {
+                console.error('❌ Erro ao iniciar bot:', error);
+                alert('Erro ao iniciar bot');
+            }
+        }
+
+        async function stopBot(restaurantId) {
+            try {
+                const response = await fetch(`/api/restaurants/${restaurantId}/stop`, {
+                    method: 'POST'
+                });
+                
+                if (response.ok) {
+                    console.log('🛑 Bot parado:', restaurantId);
+                    updateRestaurantStatus(restaurantId, 'disconnected');
+                } else {
+                    throw new Error('Erro ao parar bot');
+                }
+            } catch (error) {
+                console.error('❌ Erro ao parar bot:', error);
+                alert('Erro ao parar bot');
+            }
+        }
+
+        function updateRestaurantStatus(restaurantId, status) {
+            const statusElement = document.getElementById(`status-${restaurantId}`);
+            const card = document.getElementById(`restaurant-${restaurantId}`);
+            
+            if (statusElement && card) {
+                // Remove todas as classes de status
+                card.classList.remove('connected', 'connecting', 'error');
+                statusElement.classList.remove('status-connected', 'status-connecting', 'status-disconnected');
+                
+                // Adiciona nova classe
+                switch (status) {
+                    case 'connected':
+                        card.classList.add('connected');
+                        statusElement.classList.add('status-connected');
+                        statusElement.textContent = 'Conectado';
+                        break;
+                    case 'connecting':
+                        card.classList.add('connecting');
+                        statusElement.classList.add('status-connecting');
+                        statusElement.textContent = 'Conectando';
+                        break;
+                    case 'error':
+                        card.classList.add('error');
+                        statusElement.classList.add('status-disconnected');
+                        statusElement.textContent = 'Erro';
+                        break;
+                    default:
+                        statusElement.classList.add('status-disconnected');
+                        statusElement.textContent = 'Desconectado';
+                }
+            }
+            
+            updateDashboardStats();
+        }
+
+        function updateDashboardStats() {
+            const connected = document.querySelectorAll('.restaurant-card.connected').length;
+            const connecting = document.querySelectorAll('.restaurant-card.connecting').length;
+            
+            document.getElementById('connected-bots').textContent = connected;
+            document.getElementById('pending-qr').textContent = connecting;
+            document.getElementById('total-sessions').textContent = connected;
+        }
+
+        function showQRModal(restaurantId, restaurantName) {
+            currentQRRestaurant = restaurantId;
+            document.getElementById('qr-restaurant-name').textContent = `${restaurantName} - WhatsApp`;
+            document.getElementById('qr-code-container').innerHTML = `
+                <div class="loading"></div>
+                Aguardando QR Code...
+            `;
+            document.getElementById('qr-modal').style.display = 'flex';
+            
+            // Inscreve-se nas atualizações deste restaurante
+            socket.emit('subscribe_restaurant', restaurantId);
+        }
+
+        function showQRCode(restaurantId, qrData) {
+            if (currentQRRestaurant === restaurantId) {
+                document.getElementById('qr-code-container').innerHTML = `
+                    <img src="${qrData}" alt="QR Code WhatsApp" style="max-width: 100%;" />
+                `;
+            }
+        }
+
+        function closeQRModal() {
+            document.getElementById('qr-modal').style.display = 'none';
+            currentQRRestaurant = null;
+        }
+
+        function refreshData() {
+            loadRestaurants();
+        }
+
+        function showError(message) {
+            // Implementar notificação de erro
+            console.error(message);
+        }
+
+        // Fechar modal clicando fora
+        document.getElementById('qr-modal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeQRModal();
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug - SigSushi Bot</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        .success { background: #d4edda; color: #155724; }
+        .warning { background: #fff3cd; color: #856404; }
+        .error { background: #f8d7da; color: #721c24; }
+        button {
+            background: #25D366;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover { background: #1fa851; }
+        #qrcode {
+            text-align: center;
+            margin: 20px 0;
+            min-height: 100px;
+            border: 2px dashed #ccc;
+            padding: 20px;
+        }
+        #log {
+            background: #000;
+            color: #0f0;
+            padding: 15px;
+            border-radius: 5px;
+            height: 200px;
+            overflow-y: scroll;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🍣 SigSushi Bot - Debug</h1>
+        
+        <div id="status" class="status warning">
+            🔄 Carregando...
+        </div>
+
+        <div>
+            <button onclick="testServer()">🧪 Testar Servidor</button>
+            <button onclick="generateTestQR()">📱 Gerar QR Teste</button>
+            <button onclick="simulateReady()">✅ Simular Conectado</button>
+            <button onclick="clearLog()">🗑️ Limpar Log</button>
+        </div>
+
+        <div id="qrcode">
+            <p>QR Code aparecerá aqui...</p>
+        </div>
+
+        <h3>📋 Log de Debug:</h3>
+        <div id="log"></div>
+    </div>
+
+    <script>
+        const statusDiv = document.getElementById('status');
+        const qrcodeDiv = document.getElementById('qrcode');
+        const logDiv = document.getElementById('log');
+
+        function log(message) {
+            const time = new Date().toLocaleTimeString();
+            logDiv.innerHTML += `[${time}] ${message}\n`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(message);
+        }
+
+        function updateStatus(message, type = 'warning') {
+            statusDiv.className = `status ${type}`;
+            statusDiv.textContent = message;
+            log(`Status: ${message}`);
+        }
+
+        function clearLog() {
+            logDiv.innerHTML = '';
+            log('Log limpo');
+        }
+
+        async function testServer() {
+            log('🔄 Testando conexão com servidor...');
+            updateStatus('🔄 Testando servidor...', 'warning');
+            
+            try {
+                const response = await fetch('/test-qr');
+                const data = await response.json();
+                log(`✅ Servidor respondeu: ${JSON.stringify(data)}`);
+                updateStatus('✅ Servidor funcionando!', 'success');
+            } catch (error) {
+                log(`❌ Erro no servidor: ${error.message}`);
+                updateStatus('❌ Servidor não responde', 'error');
+            }
+        }
+
+        async function generateTestQR() {
+            log('📱 Gerando QR Code de teste...');
+            updateStatus('📱 Gerando QR Code...', 'warning');
+            
+            try {
+                const response = await fetch('/test-qr');
+                if (response.ok) {
+                    const data = await response.json();
+                    log(`✅ QR Code solicitado: ${data.message}`);
+                    updateStatus('✅ QR Code gerado via API', 'success');
+                    
+                    // Gera QR visual usando biblioteca externa
+                    const qrText = 'TEST-QR-' + Date.now();
+                    qrcodeDiv.innerHTML = `
+                        <p>📱 QR Code de Teste:</p>
+                        <div id="qr-canvas"></div>
+                        <p style="font-size: 12px; color: #666;">${qrText}</p>
+                    `;
+                    
+                    // Usa QRCode.js se disponível
+                    if (typeof QRCode !== 'undefined') {
+                        QRCode.toCanvas(document.getElementById('qr-canvas'), qrText);
+                        log('✅ QR Code visual gerado');
+                    } else {
+                        log('⚠️ QRCode.js não disponível, usando API externa');
+                        const qrImg = document.createElement('img');
+                        qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrText)}`;
+                        qrImg.style.maxWidth = '200px';
+                        document.getElementById('qr-canvas').appendChild(qrImg);
+                    }
+                } else {
+                    throw new Error('Resposta não OK: ' + response.status);
+                }
+            } catch (error) {
+                log(`❌ Erro ao gerar QR: ${error.message}`);
+                updateStatus('❌ Erro ao gerar QR Code', 'error');
+            }
+        }
+
+        async function simulateReady() {
+            log('✅ Simulando bot conectado...');
+            updateStatus('✅ Simulando conexão...', 'warning');
+            
+            try {
+                const response = await fetch('/simulate-ready');
+                const data = await response.json();
+                log(`✅ Simulação: ${data.message}`);
+                updateStatus('✅ Bot simulado como conectado!', 'success');
+                qrcodeDiv.innerHTML = '<p style="color: green; font-size: 20px;">✅ WhatsApp Conectado!</p>';
+            } catch (error) {
+                log(`❌ Erro na simulação: ${error.message}`);
+                updateStatus('❌ Erro na simulação', 'error');
+            }
+        }
+
+        // Testa WebSocket se disponível
+        function testWebSocket() {
+            log('🔌 Testando WebSocket...');
+            
+            try {
+                if (typeof io === 'undefined') {
+                    log('❌ Socket.IO não carregado');
+                    return false;
+                }
+                
+                const socket = io();
+                
+                socket.on('connect', () => {
+                    log('✅ WebSocket conectado!');
+                    updateStatus('✅ WebSocket funcionando', 'success');
+                });
+                
+                socket.on('connect_error', (error) => {
+                    log(`❌ Erro WebSocket: ${error.message}`);
+                    updateStatus('❌ WebSocket com erro', 'error');
+                });
+                
+                socket.on('qr', (qrData) => {
+                    log('📱 QR Code recebido via WebSocket!');
+                    qrcodeDiv.innerHTML = `<img src="${qrData}" style="max-width: 300px;" alt="QR Code" />`;
+                    updateStatus('📱 QR Code recebido!', 'success');
+                });
+                
+                return true;
+            } catch (error) {
+                log(`❌ Erro ao testar WebSocket: ${error.message}`);
+                return false;
+            }
+        }
+
+        // Inicialização
+        window.onload = function() {
+            log('🚀 Página de debug carregada');
+            updateStatus('🔄 Inicializando...', 'warning');
+            
+            // Testa servidor automaticamente
+            setTimeout(() => {
+                testServer();
+            }, 1000);
+            
+            // Tenta WebSocket se disponível
+            setTimeout(() => {
+                if (!testWebSocket()) {
+                    log('⚠️ WebSocket não disponível - usando modo manual');
+                    updateStatus('⚠️ Modo manual - Use os botões', 'warning');
+                }
+            }, 2000);
+        };
+    </script>
+    
+    <!-- Carrega QRCode.js se possível -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js" onerror="console.log('QRCode.js não carregou')"></script>
+    <!-- Carrega Socket.IO se disponível -->
+    <script src="/socket.io/socket.io.js" onerror="console.log('Socket.IO não carregou')"></script>
+</body>
+</html>
