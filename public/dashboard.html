@@ -336,6 +336,7 @@
                 <button class="btn btn-warning" onclick="testQR()">🧪 Testar QR</button>
                 <button class="btn btn-info" onclick="testWebSocket()">📡 Testar WS</button>
                 <button class="btn btn-success" onclick="testQRDisplay()">🎯 Teste Direto QR</button>
+                <button class="btn btn-danger" onclick="regenerateQR()">🔄 Regenerar QR</button>
             </div>
         </div>
     </div>
@@ -822,6 +823,33 @@
             } catch (error) {
                 console.error('🔥 [TEST] Erro no teste WebSocket:', error);
                 alert('Erro na requisição de teste WebSocket');
+            }
+        }
+
+        // REGENERAR QR CODE API
+        async function regenerateQR(restaurantId = 'test-restaurant') {
+            console.log('🔥 [REGENERATE] Iniciando regeneração de QR...');
+            
+            try {
+                const response = await fetch(`/api/regenerate-qr/${restaurantId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const result = await response.json();
+                console.log('🔥 [REGENERATE] Resultado:', result);
+                
+                if (result.success) {
+                    alert(`✅ QR Code regeneração iniciada para restaurante: ${result.restaurantId}`);
+                    console.log('🔥 [REGENERATE] Aguardando novo QR via WebSocket...');
+                } else {
+                    alert(`❌ Erro na regeneração: ${result.error}`);
+                }
+            } catch (error) {
+                console.error('🔥 [REGENERATE] Erro:', error);
+                alert('❌ Erro na requisição de regeneração');
             }
         }
 

@@ -81,6 +81,8 @@ class MultiRestaurantBot {
             console.log(`   - GET /debug - Redirect to debug-full`);
             console.log(`   - GET /socket-test - Dedicated WebSocket test page`);
             console.log(`   - GET /health - Health check`);
+            console.log(`   - POST /api/regenerate-qr/[restaurantId] - Regenerate QR Code`);
+            console.log(`   - GET /api/regenerate-qr/[restaurantId] - Regenerate QR Code (browser friendly)`);
         });
 
         this.server.on('error', (error) => {
@@ -310,6 +312,134 @@ class MultiRestaurantBot {
                 clients: this.io.engine.clientsCount,
                 message: 'Server is running'
             });
+        });
+
+        // API REGENERATE QR CODE (MISSING ENDPOINT FIXED)
+        this.app.post('/api/regenerate-qr/:restaurantId?', async (req, res) => {
+            console.log('🔥 [REGENERATE QR] API called');
+            const restaurantId = req.params.restaurantId || req.body.restaurantId;
+            
+            try {
+                console.log(`🔥 [REGENERATE QR] Restaurant ID: ${restaurantId}`);
+                
+                if (restaurantId) {
+                    // Regenerate QR for specific restaurant
+                    const botInstance = this.restaurants.get(restaurantId);
+                    if (botInstance) {
+                        console.log(`🔥 [REGENERATE QR] Stopping bot for restaurant: ${restaurantId}`);
+                        
+                        // Stop the current bot
+                        await this.stopRestaurantBot(restaurantId);
+                        
+                        // Wait a moment before restarting
+                        await new Promise(resolve => setTimeout(resolve, 2000));
+                        
+                        console.log(`🔥 [REGENERATE QR] Restarting bot for restaurant: ${restaurantId}`);
+                        
+                        // Restart the bot (this will generate a new QR)
+                        await this.startRestaurantBot(restaurantId);
+                        
+                        res.json({
+                            success: true,
+                            message: `QR Code regeneration initiated for restaurant ${restaurantId}`,
+                            restaurantId: restaurantId,
+                            timestamp: Date.now()
+                        });
+                        
+                        console.log(`🔥 [REGENERATE QR] ✅ QR regeneration completed for: ${restaurantId}`);
+                        
+                    } else {
+                        console.log(`🔥 [REGENERATE QR] ❌ Restaurant not found: ${restaurantId}`);
+                        res.status(404).json({
+                            success: false,
+                            error: `Restaurant ${restaurantId} not found or not running`,
+                            restaurantId: restaurantId
+                        });
+                    }
+                } else {
+                    // No specific restaurant - regenerate for all active restaurants
+                    console.log('🔥 [REGENERATE QR] Regenerating for all active restaurants');
+                    
+                    const activeRestaurants = Array.from(this.restaurants.keys());
+                    let regenerated = 0;
+                    
+                    for (const restId of activeRestaurants) {
+                        try {
+                            console.log(`🔥 [REGENERATE QR] Processing restaurant: ${restId}`);
+                            await this.stopRestaurantBot(restId);
+                            await new Promise(resolve => setTimeout(resolve, 1000));
+                            await this.startRestaurantBot(restId);
+                            regenerated++;
+                            console.log(`🔥 [REGENERATE QR] ✅ Regenerated for: ${restId}`);
+                        } catch (error) {
+                            console.error(`🔥 [REGENERATE QR] ❌ Failed for ${restId}:`, error);
+                        }
+                    }
+                    
+                    res.json({
+                        success: true,
+                        message: `QR Code regeneration initiated for ${regenerated} restaurants`,
+                        regeneratedCount: regenerated,
+                        totalRestaurants: activeRestaurants.length,
+                        timestamp: Date.now()
+                    });
+                }
+                
+            } catch (error) {
+                console.error('🔥 [REGENERATE QR] ❌ Error:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+                    timestamp: Date.now()
+                });
+            }
+        });
+
+        // API REGENERATE QR CODE - GET METHOD (for easy browser testing)
+        this.app.get('/api/regenerate-qr/:restaurantId?', async (req, res) => {
+            console.log('🔥 [REGENERATE QR] GET method called - redirecting to POST');
+            
+            // For GET requests, we'll process directly (easier for testing)
+            req.body = { restaurantId: req.params.restaurantId };
+            
+            // Call the POST handler
+            try {
+                const restaurantId = req.params.restaurantId;
+                
+                if (restaurantId) {
+                    const botInstance = this.restaurants.get(restaurantId);
+                    if (botInstance) {
+                        await this.stopRestaurantBot(restaurantId);
+                        await new Promise(resolve => setTimeout(resolve, 2000));
+                        await this.startRestaurantBot(restaurantId);
+                        
+                        res.json({
+                            success: true,
+                            message: `QR Code regeneration completed for restaurant ${restaurantId}`,
+                            method: 'GET',
+                            restaurantId: restaurantId,
+                            timestamp: Date.now()
+                        });
+                    } else {
+                        res.status(404).json({
+                            success: false,
+                            error: `Restaurant ${restaurantId} not found`
+                        });
+                    }
+                } else {
+                    res.json({
+                        success: false,
+                        error: 'Restaurant ID required for GET method',
+                        usage: 'GET /api/regenerate-qr/:restaurantId'
+                    });
+                }
+            } catch (error) {
+                res.status(500).json({
+                    success: false,
+                    error: error.message
+                });
+            }
         });
 
         // ROTA PARA TESTAR CONECTIVIDADE WEBSOCKET ESPECÍFICA
