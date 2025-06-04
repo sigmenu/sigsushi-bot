@@ -914,28 +914,60 @@ class MultiRestaurantBot {
                         }
 
                         function downloadLogs() {
-                            const logsText = logs.map(log => '[' + log.timestamp + '] [' + log.type.toUpperCase() + '] ' + log.message).join('\\n');
-                            const blob = new Blob([logsText], { type: 'text/plain' });
-                            const url = URL.createObjectURL(blob);
-                            const a = document.createElement('a');
-                            a.href = url;
-                            a.download = 'debug-logs-' + new Date().toISOString().slice(0, 19) + '.txt';
-                            a.click();
-                            URL.revokeObjectURL(url);
+                            try {
+                                const logsText = logs.map(log => {
+                                    const timestamp = log.timestamp || 'no-time';
+                                    const type = (log.type || 'info').toUpperCase();
+                                    const message = log.message || 'no-message';
+                                    return '[' + timestamp + '] [' + type + '] ' + message;
+                                }).join('\\n');
+                                
+                                const blob = new Blob([logsText], { type: 'text/plain' });
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = 'debug-logs-' + new Date().toISOString().slice(0, 19) + '.txt';
+                                document.body.appendChild(a);
+                                a.click();
+                                document.body.removeChild(a);
+                                URL.revokeObjectURL(url);
+                                addLog('info', '📥 Logs downloaded successfully');
+                            } catch (error) {
+                                console.error('Error downloading logs:', error);
+                                addLog('error', '❌ Failed to download logs: ' + error.message);
+                            }
                         }
 
                         function exportDebugData() {
-                            fetch('/debug-full')
-                                .then(response => response.json())
-                                .then(data => {
-                                    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-                                    const url = URL.createObjectURL(blob);
-                                    const a = document.createElement('a');
-                                    a.href = url;
-                                    a.download = 'debug-data-' + new Date().toISOString().slice(0, 19) + '.json';
-                                    a.click();
-                                    URL.revokeObjectURL(url);
-                                });
+                            try {
+                                addLog('info', '📊 Exporting debug data...');
+                                fetch('/debug-full')
+                                    .then(response => {
+                                        if (!response.ok) {
+                                            throw new Error('Network response was not ok');
+                                        }
+                                        return response.json();
+                                    })
+                                    .then(data => {
+                                        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                                        const url = URL.createObjectURL(blob);
+                                        const a = document.createElement('a');
+                                        a.href = url;
+                                        a.download = 'debug-data-' + new Date().toISOString().slice(0, 19) + '.json';
+                                        document.body.appendChild(a);
+                                        a.click();
+                                        document.body.removeChild(a);
+                                        URL.revokeObjectURL(url);
+                                        addLog('info', '📊 Debug data exported successfully');
+                                    })
+                                    .catch(error => {
+                                        console.error('Error exporting debug data:', error);
+                                        addLog('error', '❌ Failed to export debug data: ' + error.message);
+                                    });
+                            } catch (error) {
+                                console.error('Error in exportDebugData:', error);
+                                addLog('error', '❌ Error in export function: ' + error.message);
+                            }
                         }
                     </script>
                 </body>

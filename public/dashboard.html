@@ -435,16 +435,38 @@
             });
 
             socket.on('qr', (data) => {
-                console.log('🔥 [FRONTEND] 📱 QR Code recebido!');
-                console.log('🔥 [FRONTEND] Data:', data);
-                console.log('🔥 [FRONTEND] Restaurant ID:', data.restaurantId);
-                console.log('🔥 [FRONTEND] QR Data length:', data.qrData?.length);
-                console.log('🔥 [FRONTEND] Debug flag:', data.debug);
-                console.log('🔥 [FRONTEND] Current QR Restaurant:', currentQRRestaurant);
+                console.log('🎯 [FRONTEND] 📱 === QR CODE EVENT RECEIVED ===');
+                console.log('🎯 [FRONTEND] Full data object:', data);
+                console.log('🎯 [FRONTEND] Restaurant ID:', data.restaurantId);
+                console.log('🎯 [FRONTEND] QR Data exists:', !!data.qrData);
+                console.log('🎯 [FRONTEND] QR Data type:', typeof data.qrData);
+                console.log('🎯 [FRONTEND] QR Data length:', data.qrData?.length);
+                console.log('🎯 [FRONTEND] QR Data preview:', data.qrData?.substring(0, 50));
+                console.log('🎯 [FRONTEND] Debug flag:', data.debug);
+                console.log('🎯 [FRONTEND] Timestamp:', data.timestamp);
+                console.log('🎯 [FRONTEND] Current QR Restaurant before call:', currentQRRestaurant);
+                
+                // Validate QR data before calling showQRCode
+                if (!data.qrData || typeof data.qrData !== 'string') {
+                    console.error('🎯 [FRONTEND ERROR] Invalid QR data received!');
+                    console.error('🎯 [FRONTEND ERROR] QR Data:', data.qrData);
+                    return;
+                }
+                
+                if (!data.qrData.startsWith('data:image/')) {
+                    console.error('🎯 [FRONTEND ERROR] QR data is not a valid base64 image!');
+                    console.error('🎯 [FRONTEND ERROR] QR Data starts with:', data.qrData.substring(0, 30));
+                    return;
+                }
+                
+                console.log('🎯 [FRONTEND] ✅ QR data validation passed');
+                console.log('🎯 [FRONTEND] 🎯 Calling showQRCode() with force=true...');
                 
                 // CRITICAL FIX: Always show QR, don't depend on currentQRRestaurant
                 showQRCode(data.restaurantId, data.qrData, true); // Force display
                 updateRestaurantStatus(data.restaurantId, 'connecting');
+                
+                console.log('🎯 [FRONTEND] ✅ showQRCode() call completed');
             });
 
             socket.on('qr_debug', (data) => {
@@ -702,52 +724,129 @@
         }
 
         function showQRCode(restaurantId, qrData, forceDisplay = false) {
-            console.log('🔥 [QR DISPLAY 1] showQRCode called');
-            console.log('🔥 [QR DISPLAY 2] Restaurant ID:', restaurantId);
-            console.log('🔥 [QR DISPLAY 3] QR Data length:', qrData?.length);
-            console.log('🔥 [QR DISPLAY 4] Force display:', forceDisplay);
-            console.log('🔥 [QR DISPLAY 5] Current QR Restaurant:', currentQRRestaurant);
-            console.log('🔥 [QR DISPLAY 6] QR Data preview:', qrData?.substring(0, 50));
+            console.log('🎯 [QR DISPLAY 1] === showQRCode() CALLED ===');
+            console.log('🎯 [QR DISPLAY 2] Restaurant ID:', restaurantId);
+            console.log('🎯 [QR DISPLAY 3] QR Data length:', qrData?.length);
+            console.log('🎯 [QR DISPLAY 4] QR Data type:', typeof qrData);
+            console.log('🎯 [QR DISPLAY 5] Force display:', forceDisplay);
+            console.log('🎯 [QR DISPLAY 6] Current QR Restaurant:', currentQRRestaurant);
+            console.log('🎯 [QR DISPLAY 7] QR Data starts with:', qrData?.substring(0, 30));
+            console.log('🎯 [QR DISPLAY 8] QR Data is valid base64:', qrData?.startsWith('data:image/'));
             
             // CRITICAL FIX: Show QR regardless of currentQRRestaurant when forced or when modal is open
             const shouldShow = forceDisplay || currentQRRestaurant === restaurantId || currentQRRestaurant === null;
             
-            console.log('🔥 [QR DISPLAY 7] Should show QR:', shouldShow);
+            console.log('🎯 [QR DISPLAY 9] Should show QR:', shouldShow);
+            console.log('🎯 [QR DISPLAY 10] Checking DOM elements...');
+            
+            // Check all required DOM elements first
+            const qrModal = document.getElementById('qr-modal');
+            const qrContainer = document.getElementById('qr-code-container');
+            const qrRestaurantName = document.getElementById('qr-restaurant-name');
+            
+            console.log('🎯 [QR DISPLAY 11] QR Modal found:', !!qrModal);
+            console.log('🎯 [QR DISPLAY 12] QR Container found:', !!qrContainer);
+            console.log('🎯 [QR DISPLAY 13] QR Restaurant Name found:', !!qrRestaurantName);
+            
+            if (!qrModal || !qrContainer || !qrRestaurantName) {
+                console.error('🎯 [QR DISPLAY ERROR] Missing DOM elements!');
+                console.error('🎯 [QR DISPLAY ERROR] Modal:', !!qrModal, 'Container:', !!qrContainer, 'Name:', !!qrRestaurantName);
+                return;
+            }
             
             if (shouldShow) {
-                const qrContainer = document.getElementById('qr-code-container');
-                console.log('🔥 [QR DISPLAY 8] QR Container found:', !!qrContainer);
+                console.log('🎯 [QR DISPLAY 14] Proceeding with QR display...');
                 
-                if (qrContainer) {
-                    // If no specific restaurant is being viewed, open modal for this one
-                    if (!currentQRRestaurant) {
-                        console.log('🔥 [QR DISPLAY 9] Auto-opening modal for:', restaurantId);
-                        currentQRRestaurant = restaurantId;
-                        document.getElementById('qr-restaurant-name').textContent = `Restaurant ${restaurantId} - WhatsApp`;
-                        document.getElementById('qr-modal').style.display = 'flex';
-                    }
+                // If no specific restaurant is being viewed, open modal for this one
+                if (!currentQRRestaurant || forceDisplay) {
+                    console.log('🎯 [QR DISPLAY 15] Opening modal for restaurant:', restaurantId);
+                    currentQRRestaurant = restaurantId;
                     
-                    const qrImageHTML = `
-                        <img src="${qrData}" alt="QR Code WhatsApp" style="max-width: 100%; height: auto; display: block; margin: 0 auto;" />
-                        <p style="margin-top: 10px; font-size: 12px; color: #666;">QR gerado: ${new Date().toLocaleTimeString()}</p>
-                    `;
+                    // Set restaurant name
+                    const restaurantName = `Restaurant ${restaurantId} - WhatsApp`;
+                    qrRestaurantName.textContent = restaurantName;
+                    console.log('🎯 [QR DISPLAY 16] Restaurant name set to:', restaurantName);
                     
-                    qrContainer.innerHTML = qrImageHTML;
-                    console.log('🔥 [QR DISPLAY 10] ✅ QR Code inserido no DOM!');
+                    // Show modal
+                    qrModal.style.display = 'flex';
+                    console.log('🎯 [QR DISPLAY 17] Modal display set to flex');
                     
-                    // Verify insertion
-                    const img = qrContainer.querySelector('img');
-                    console.log('🔥 [QR DISPLAY 11] Image element found:', !!img);
-                    if (img) {
-                        console.log('🔥 [QR DISPLAY 12] Image src length:', img.src.length);
-                        img.onload = () => console.log('🔥 [QR DISPLAY 13] ✅ Image loaded successfully');
-                        img.onerror = (e) => console.error('🔥 [QR DISPLAY ERROR] Image failed to load:', e);
-                    }
-                } else {
-                    console.error('🔥 [QR DISPLAY ERROR] QR Container not found!');
+                    // Verify modal is visible
+                    const modalVisible = qrModal.style.display === 'flex';
+                    console.log('🎯 [QR DISPLAY 18] Modal visible confirmation:', modalVisible);
                 }
+                
+                console.log('🎯 [QR DISPLAY 19] Creating QR image HTML...');
+                
+                const qrImageHTML = `
+                    <div style="text-align: center; padding: 10px;">
+                        <img src="${qrData}" 
+                             alt="QR Code WhatsApp" 
+                             style="max-width: 100% !important; 
+                                    height: auto !important; 
+                                    display: block !important; 
+                                    margin: 0 auto !important;
+                                    border: 2px solid #00ff00 !important;
+                                    background: white !important;
+                                    padding: 10px !important;" 
+                             onload="console.log('🎯 [QR IMAGE] ✅ Image loaded successfully')" 
+                             onerror="console.error('🎯 [QR IMAGE] ❌ Image failed to load')" />
+                        <p style="margin-top: 10px; font-size: 12px; color: #666; text-align: center;">
+                            QR gerado: ${new Date().toLocaleTimeString()}
+                        </p>
+                        <p style="margin-top: 5px; font-size: 10px; color: #999; text-align: center;">
+                            Data length: ${qrData?.length} chars
+                        </p>
+                    </div>
+                `;
+                
+                console.log('🎯 [QR DISPLAY 20] QR HTML created, length:', qrImageHTML.length);
+                
+                // Clear container first
+                qrContainer.innerHTML = '';
+                console.log('🎯 [QR DISPLAY 21] Container cleared');
+                
+                // Insert QR HTML
+                qrContainer.innerHTML = qrImageHTML;
+                console.log('🎯 [QR DISPLAY 22] ✅ QR HTML inserted into container!');
+                
+                // Verify insertion immediately
+                setTimeout(() => {
+                    const insertedImg = qrContainer.querySelector('img');
+                    console.log('🎯 [QR DISPLAY 23] Image element found after insertion:', !!insertedImg);
+                    
+                    if (insertedImg) {
+                        console.log('🎯 [QR DISPLAY 24] Image src length:', insertedImg.src.length);
+                        console.log('🎯 [QR DISPLAY 25] Image display style:', insertedImg.style.display);
+                        console.log('🎯 [QR DISPLAY 26] Image visibility:', getComputedStyle(insertedImg).visibility);
+                        console.log('🎯 [QR DISPLAY 27] Image opacity:', getComputedStyle(insertedImg).opacity);
+                        console.log('🎯 [QR DISPLAY 28] Image width x height:', insertedImg.offsetWidth + 'x' + insertedImg.offsetHeight);
+                        
+                        // Force image to be visible
+                        insertedImg.style.display = 'block';
+                        insertedImg.style.visibility = 'visible';
+                        insertedImg.style.opacity = '1';
+                        insertedImg.style.zIndex = '9999';
+                        
+                        console.log('🎯 [QR DISPLAY 29] ✅ Image forced to visible state');
+                    } else {
+                        console.error('🎯 [QR DISPLAY ERROR] Image element not found after insertion!');
+                        console.error('🎯 [QR DISPLAY ERROR] Container innerHTML:', qrContainer.innerHTML.substring(0, 100));
+                    }
+                    
+                    // Verify modal visibility
+                    const modalComputedStyle = getComputedStyle(qrModal);
+                    console.log('🎯 [QR DISPLAY 30] Modal computed display:', modalComputedStyle.display);
+                    console.log('🎯 [QR DISPLAY 31] Modal computed visibility:', modalComputedStyle.visibility);
+                    console.log('🎯 [QR DISPLAY 32] Modal z-index:', modalComputedStyle.zIndex);
+                    
+                }, 100);
+                
             } else {
-                console.log('🔥 [QR DISPLAY 14] QR not displayed - conditions not met');
+                console.log('🎯 [QR DISPLAY 33] ❌ QR not displayed - conditions not met');
+                console.log('🎯 [QR DISPLAY 34] Force display:', forceDisplay);
+                console.log('🎯 [QR DISPLAY 35] Current restaurant matches:', currentQRRestaurant === restaurantId);
+                console.log('🎯 [QR DISPLAY 36] Current restaurant is null:', currentQRRestaurant === null);
             }
         }
 
