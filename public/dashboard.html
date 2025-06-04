@@ -320,6 +320,8 @@
             <div class="header-actions">
                 <a href="/admin" class="btn btn-primary">👨‍💼 Admin</a>
                 <button class="btn btn-secondary" onclick="refreshData()">🔄 Atualizar</button>
+                <button class="btn btn-warning" onclick="testQR()">🧪 Testar QR</button>
+                <button class="btn btn-info" onclick="testWebSocket()">📡 Testar WS</button>
             </div>
         </div>
     </div>
@@ -385,20 +387,58 @@
         });
 
         function connectWebSocket() {
+            console.log('🔥 [FRONTEND] Iniciando conexão WebSocket...');
             socket = io();
 
             socket.on('connect', () => {
-                console.log('🔗 Conectado ao WebSocket');
+                console.log('🔥 [FRONTEND] ✅ Conectado ao WebSocket');
+                console.log('🔥 [FRONTEND] Socket ID:', socket.id);
+                
+                // Teste imediato da conexão
+                socket.emit('ping_test', {
+                    message: 'Frontend ping test',
+                    timestamp: Date.now()
+                });
+            });
+
+            socket.on('connection_confirmed', (data) => {
+                console.log('🔥 [FRONTEND] ✅ Conexão confirmada pelo servidor:', data);
             });
 
             socket.on('qr', (data) => {
-                console.log('📱 QR Code recebido para:', data.restaurantId);
+                console.log('🔥 [FRONTEND] 📱 QR Code recebido!');
+                console.log('🔥 [FRONTEND] Data:', data);
+                console.log('🔥 [FRONTEND] Restaurant ID:', data.restaurantId);
+                console.log('🔥 [FRONTEND] QR Data length:', data.qrData?.length);
+                console.log('🔥 [FRONTEND] Debug flag:', data.debug);
+                
                 showQRCode(data.restaurantId, data.qrData);
                 updateRestaurantStatus(data.restaurantId, 'connecting');
             });
 
+            socket.on('qr_debug', (data) => {
+                console.log('🔥 [FRONTEND] 🐛 QR Debug event:', data);
+            });
+
+            socket.on('qr_error', (data) => {
+                console.error('🔥 [FRONTEND] ❌ QR Error event:', data);
+                alert('Erro ao gerar QR Code: ' + data.error);
+            });
+
+            socket.on('websocket_test', (data) => {
+                console.log('🔥 [FRONTEND] 🧪 WebSocket test received:', data);
+            });
+
+            socket.on('pong_test', (data) => {
+                console.log('🔥 [FRONTEND] 🏓 Pong received:', data);
+            });
+
+            socket.on('subscription_confirmed', (data) => {
+                console.log('🔥 [FRONTEND] 📝 Subscription confirmed:', data);
+            });
+
             socket.on('ready', (data) => {
-                console.log('✅ Bot conectado:', data.restaurantId);
+                console.log('🔥 [FRONTEND] ✅ Bot conectado:', data.restaurantId);
                 updateRestaurantStatus(data.restaurantId, 'connected');
                 if (currentQRRestaurant === data.restaurantId) {
                     closeQRModal();
@@ -406,13 +446,25 @@
             });
 
             socket.on('disconnected', (data) => {
-                console.log('🔌 Bot desconectado:', data.restaurantId);
+                console.log('🔥 [FRONTEND] 🔌 Bot desconectado:', data.restaurantId);
                 updateRestaurantStatus(data.restaurantId, 'disconnected');
             });
 
             socket.on('auth_failure', (data) => {
-                console.log('❌ Falha na autenticação:', data.restaurantId);
+                console.log('🔥 [FRONTEND] ❌ Falha na autenticação:', data.restaurantId);
                 updateRestaurantStatus(data.restaurantId, 'error');
+            });
+
+            socket.on('disconnect', (reason) => {
+                console.error('🔥 [FRONTEND] ❌ WebSocket desconectado:', reason);
+            });
+
+            socket.on('error', (error) => {
+                console.error('🔥 [FRONTEND] ❌ WebSocket error:', error);
+            });
+
+            socket.on('connect_error', (error) => {
+                console.error('🔥 [FRONTEND] ❌ Connection error:', error);
             });
         }
 
@@ -638,6 +690,43 @@
         function showError(message) {
             // Implementar notificação de erro
             console.error(message);
+        }
+
+        // FUNÇÕES DE TESTE PARA DEBUG
+        async function testQR() {
+            console.log('🔥 [TEST] Testando geração de QR...');
+            try {
+                const response = await fetch('/test-qr/test-restaurant');
+                const result = await response.json();
+                console.log('🔥 [TEST] Resultado do teste QR:', result);
+                
+                if (result.success) {
+                    alert(`QR de teste gerado! Clientes notificados: ${result.clientsNotified}`);
+                } else {
+                    alert('Erro no teste QR: ' + result.error);
+                }
+            } catch (error) {
+                console.error('🔥 [TEST] Erro no teste QR:', error);
+                alert('Erro na requisição de teste QR');
+            }
+        }
+
+        async function testWebSocket() {
+            console.log('🔥 [TEST] Testando WebSocket...');
+            try {
+                const response = await fetch('/test-websocket');
+                const result = await response.json();
+                console.log('🔥 [TEST] Resultado do teste WebSocket:', result);
+                
+                if (result.success) {
+                    alert(`Teste WebSocket enviado! Clientes: ${result.data.clientsCount}`);
+                } else {
+                    alert('Erro no teste WebSocket');
+                }
+            } catch (error) {
+                console.error('🔥 [TEST] Erro no teste WebSocket:', error);
+                alert('Erro na requisição de teste WebSocket');
+            }
         }
 
         // Fechar modal clicando fora

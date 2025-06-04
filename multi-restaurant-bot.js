@@ -17,13 +17,42 @@ class MultiRestaurantBot {
     setupWebServer() {
         this.app = express();
         this.server = http.createServer(this.app);
-        this.io = socketIo(this.server);
+        
+        // CORS Configuration para VPS
+        const cors = require('cors');
+        this.app.use(cors({
+            origin: '*',
+            methods: ['GET', 'POST', 'PUT', 'DELETE'],
+            allowedHeaders: ['Content-Type', 'Authorization'],
+            credentials: true
+        }));
+        
+        this.io = socketIo(this.server, {
+            cors: {
+                origin: '*',
+                methods: ['GET', 'POST'],
+                credentials: true
+            },
+            allowEIO3: true,
+            transports: ['websocket', 'polling']
+        });
+        
         this.port = process.env.PORT || 3000;
 
+        console.log('🔥 [SERVER DEBUG] Setting up web server...');
+        console.log(`🔥 [SERVER DEBUG] Port: ${this.port}`);
+        console.log(`🔥 [SERVER DEBUG] Environment: ${process.env.NODE_ENV || 'development'}`);
+
         // Middleware
-        this.app.use(express.json());
-        this.app.use(express.urlencoded({ extended: true }));
+        this.app.use(express.json({ limit: '10mb' }));
+        this.app.use(express.urlencoded({ extended: true, limit: '10mb' }));
         this.app.use(express.static(path.join(__dirname, 'public')));
+
+        // Log de todas as requests
+        this.app.use((req, res, next) => {
+            console.log(`🔥 [HTTP] ${req.method} ${req.url} - ${req.ip}`);
+            next();
+        });
 
         this.setupRoutes();
         this.setupWebSocket();
@@ -31,6 +60,15 @@ class MultiRestaurantBot {
         this.server.listen(this.port, '0.0.0.0', () => {
             console.log(`🌐 Sistema Multi-Restaurante ativo em: http://0.0.0.0:${this.port}`);
             console.log(`👤 Admin: http://0.0.0.0:${this.port}/admin`);
+            console.log(`🔥 [SERVER DEBUG] Server bound to all interfaces (0.0.0.0)`);
+            console.log(`🔥 [SERVER DEBUG] Test routes available:`);
+            console.log(`   - GET /test-qr/[restaurantId] - Force QR generation`);
+            console.log(`   - GET /test-websocket - Test WebSocket`);
+            console.log(`   - GET /debug-full - Full debug info`);
+        });
+
+        this.server.on('error', (error) => {
+            console.error('🔥 [SERVER ERROR]', error);
         });
     }
 
@@ -129,30 +167,171 @@ class MultiRestaurantBot {
             });
             res.json(status);
         });
+
+        // ROTA DE TESTE PARA FORÇAR GERAÇÃO DE QR CODE
+        this.app.get('/test-qr/:restaurantId?', async (req, res) => {
+            console.log('🔥 [TEST QR] Test QR route called');
+            const restaurantId = req.params.restaurantId || 'test-restaurant';
+            
+            try {
+                console.log(`🔥 [TEST QR] Generating test QR for restaurant: ${restaurantId}`);
+                
+                // Gera um QR de teste
+                const testQRString = `https://web.whatsapp.com/qr-test-${Date.now()}`;
+                const testQRImage = await (require('qrcode')).toDataURL(testQRString, {
+                    width: 300,
+                    margin: 2,
+                    errorCorrectionLevel: 'M'
+                });
+                
+                console.log(`🔥 [TEST QR] Test QR generated, length: ${testQRImage.length}`);
+                
+                const testPayload = {
+                    restaurantId: restaurantId,
+                    qrData: testQRImage,
+                    timestamp: Date.now(),
+                    debug: 'TEST_QR_MANUAL',
+                    test: true
+                };
+                
+                // Emite para todos os clientes
+                console.log(`🔥 [TEST QR] Emitting to ${this.io.engine.clientsCount} clients`);
+                this.io.emit('qr', testPayload);
+                this.io.emit('qr_debug', {
+                    message: 'Test QR generated manually',
+                    timestamp: Date.now(),
+                    clientsCount: this.io.engine.clientsCount
+                });
+                
+                res.json({
+                    success: true,
+                    message: 'Test QR generated and emitted',
+                    restaurantId: restaurantId,
+                    qrLength: testQRImage.length,
+                    clientsNotified: this.io.engine.clientsCount,
+                    timestamp: Date.now()
+                });
+                
+            } catch (error) {
+                console.error('🔥 [TEST QR ERROR]', error);
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    stack: error.stack
+                });
+            }
+        });
+
+        // ROTA PARA TESTAR WEBSOCKET
+        this.app.get('/test-websocket', (req, res) => {
+            console.log('🔥 [TEST WS] Testing WebSocket connectivity');
+            
+            const testData = {
+                message: 'WebSocket test from server',
+                timestamp: Date.now(),
+                clientsCount: this.io.engine.clientsCount
+            };
+            
+            this.io.emit('websocket_test', testData);
+            
+            res.json({
+                success: true,
+                message: 'WebSocket test sent',
+                data: testData
+            });
+        });
+
+        // ROTA PARA DEBUG COMPLETO
+        this.app.get('/debug-full', (req, res) => {
+            const debug = {
+                server: {
+                    port: this.port,
+                    clients: this.io.engine.clientsCount,
+                    restaurants: this.restaurants.size
+                },
+                restaurants: {},
+                environment: {
+                    nodeVersion: process.version,
+                    platform: process.platform,
+                    uptime: process.uptime(),
+                    memory: process.memoryUsage()
+                }
+            };
+            
+            this.restaurants.forEach((bot, id) => {
+                debug.restaurants[id] = {
+                    state: bot.state,
+                    connected: bot.client.info ? true : false,
+                    name: bot.restaurant.name
+                };
+            });
+            
+            res.json(debug);
+        });
     }
 
     setupWebSocket() {
         this.io.on('connection', (socket) => {
-            console.log('🌐 Cliente conectado ao dashboard');
+            console.log('🔥 [WS DEBUG 1] Cliente conectado ao dashboard');
+            console.log(`🔥 [WS DEBUG 2] Total clients: ${this.io.engine.clientsCount}`);
+            console.log(`🔥 [WS DEBUG 3] Socket ID: ${socket.id}`);
+            console.log(`🔥 [WS DEBUG 4] Client IP: ${socket.handshake.address}`);
+            console.log(`🔥 [WS DEBUG 5] Client headers:`, socket.handshake.headers);
+
+            // Envia confirmação de conexão
+            socket.emit('connection_confirmed', {
+                message: 'WebSocket connected successfully',
+                socketId: socket.id,
+                timestamp: Date.now(),
+                serverTime: new Date().toISOString()
+            });
 
             socket.on('subscribe_restaurant', (restaurantId) => {
                 socket.join(`restaurant_${restaurantId}`);
-                console.log(`📱 Cliente inscrito no restaurante: ${restaurantId}`);
+                console.log(`🔥 [WS DEBUG 6] Cliente inscrito no restaurante: ${restaurantId}`);
                 
                 // Envia status atual do restaurante quando cliente se inscreve
                 const botInstance = this.restaurants.get(restaurantId);
                 if (botInstance && botInstance.state === 'qr_ready') {
+                    console.log(`🔥 [WS DEBUG 7] Reenviando QR para cliente recém conectado`);
                     // Se há QR disponível, reenviar
                     socket.emit('qr_status', {
                         restaurantId: restaurantId,
-                        state: botInstance.state
+                        state: botInstance.state,
+                        message: 'QR available for reconnected client'
                     });
                 }
+                
+                // Confirma inscrição
+                socket.emit('subscription_confirmed', {
+                    restaurantId: restaurantId,
+                    timestamp: Date.now()
+                });
             });
 
-            socket.on('disconnect', () => {
-                console.log('🌐 Cliente desconectado do dashboard');
+            // Eventos de debug para frontend
+            socket.on('ping_test', (data) => {
+                console.log(`🔥 [WS DEBUG 8] Ping recebido:`, data);
+                socket.emit('pong_test', {
+                    received: data,
+                    timestamp: Date.now(),
+                    message: 'Pong from server'
+                });
             });
+
+            socket.on('disconnect', (reason) => {
+                console.log(`🔥 [WS DEBUG 9] Cliente desconectado: ${reason}`);
+                console.log(`🔥 [WS DEBUG 10] Remaining clients: ${this.io.engine.clientsCount - 1}`);
+            });
+
+            socket.on('error', (error) => {
+                console.error(`🔥 [WS DEBUG ERROR] Socket error:`, error);
+            });
+        });
+
+        // Log de eventos do Socket.IO
+        this.io.engine.on('connection_error', (err) => {
+            console.error('🔥 [WS DEBUG ERROR] Connection error:', err);
         });
     }
 
@@ -288,10 +467,18 @@ class RestaurantBotInstance {
 
     setupEventListeners() {
         this.client.on('qr', async (qr) => {
-            console.log(`📱 QR Code gerado para: ${this.restaurant.name}`);
+            console.log('🔥 [QR DEBUG 1] QR Event triggered');
+            console.log(`🔥 [QR DEBUG 2] Restaurant: ${this.restaurant.name}`);
+            console.log(`🔥 [QR DEBUG 3] QR String length: ${qr.length}`);
+            console.log(`🔥 [QR DEBUG 4] QR String preview: ${qr.substring(0, 50)}...`);
+            console.log(`🔥 [QR DEBUG 5] IO instance exists: ${!!this.io}`);
+            console.log(`🔥 [QR DEBUG 6] IO connected clients: ${this.io.engine.clientsCount}`);
+            
             this.state = 'qr_ready';
             
             try {
+                console.log('🔥 [QR DEBUG 7] Starting QRCode.toDataURL generation...');
+                
                 // Gera QR Code com configurações otimizadas para VPS
                 const qrImage = await QRCode.toDataURL(qr, { 
                     width: 300, 
@@ -305,30 +492,80 @@ class RestaurantBotInstance {
                     }
                 });
                 
-                // Emite QR para todos os clientes conectados (não apenas room específico)
-                this.io.emit('qr', {
+                console.log(`🔥 [QR DEBUG 8] QR Image generated successfully`);
+                console.log(`🔥 [QR DEBUG 9] QR Image size: ${qrImage.length} chars`);
+                console.log(`🔥 [QR DEBUG 10] QR Image starts with: ${qrImage.substring(0, 30)}`);
+                
+                const qrPayload = {
                     restaurantId: this.restaurant.id,
-                    qrData: qrImage
+                    qrData: qrImage,
+                    timestamp: Date.now(),
+                    debug: 'VPS_QR_GENERATION'
+                };
+                
+                console.log(`🔥 [QR DEBUG 11] Payload prepared:`, {
+                    restaurantId: qrPayload.restaurantId,
+                    qrDataLength: qrPayload.qrData.length,
+                    timestamp: qrPayload.timestamp
                 });
+                
+                // Emite QR para todos os clientes conectados (não apenas room específico)
+                console.log('🔥 [QR DEBUG 12] Emitting to ALL clients...');
+                this.io.emit('qr', qrPayload);
                 
                 // Também emite para room específico
-                this.io.to(`restaurant_${this.restaurant.id}`).emit('qr', {
+                console.log(`🔥 [QR DEBUG 13] Emitting to room restaurant_${this.restaurant.id}...`);
+                this.io.to(`restaurant_${this.restaurant.id}`).emit('qr', qrPayload);
+                
+                // Emite evento adicional para debug
+                console.log('🔥 [QR DEBUG 14] Emitting debug event...');
+                this.io.emit('qr_debug', {
                     restaurantId: this.restaurant.id,
-                    qrData: qrImage
+                    message: 'QR generated successfully on server',
+                    timestamp: Date.now(),
+                    clientsCount: this.io.engine.clientsCount
                 });
                 
-                console.log(`✅ QR Code enviado via WebSocket para: ${this.restaurant.name}`);
+                console.log(`✅ [QR DEBUG 15] QR Code enviado via WebSocket para: ${this.restaurant.name}`);
+                console.log(`✅ [QR DEBUG 16] Total clients notified: ${this.io.engine.clientsCount}`);
+                
             } catch (error) {
-                console.error('❌ Erro ao gerar QR Code:', error);
+                console.error('❌ [QR DEBUG ERROR 1] Erro ao gerar QR Code:', error);
+                console.error('❌ [QR DEBUG ERROR 2] Error stack:', error.stack);
+                
                 // Fallback: tenta gerar QR mais simples
                 try {
+                    console.log('🔥 [QR DEBUG 17] Trying fallback QR generation...');
                     const fallbackQR = await QRCode.toDataURL(qr);
-                    this.io.emit('qr', {
+                    
+                    console.log(`🔥 [QR DEBUG 18] Fallback QR generated: ${fallbackQR.length} chars`);
+                    
+                    const fallbackPayload = {
                         restaurantId: this.restaurant.id,
-                        qrData: fallbackQR
+                        qrData: fallbackQR,
+                        timestamp: Date.now(),
+                        debug: 'VPS_QR_FALLBACK'
+                    };
+                    
+                    this.io.emit('qr', fallbackPayload);
+                    this.io.emit('qr_debug', {
+                        restaurantId: this.restaurant.id,
+                        message: 'Fallback QR generated successfully',
+                        timestamp: Date.now()
                     });
+                    
+                    console.log('✅ [QR DEBUG 19] Fallback QR sent successfully');
+                    
                 } catch (fallbackError) {
-                    console.error('❌ Erro no fallback QR:', fallbackError);
+                    console.error('❌ [QR DEBUG ERROR 3] Erro no fallback QR:', fallbackError);
+                    console.error('❌ [QR DEBUG ERROR 4] Fallback error stack:', fallbackError.stack);
+                    
+                    // Último recurso: notificar erro para frontend
+                    this.io.emit('qr_error', {
+                        restaurantId: this.restaurant.id,
+                        error: 'Failed to generate QR code',
+                        timestamp: Date.now()
+                    });
                 }
             }
         });
