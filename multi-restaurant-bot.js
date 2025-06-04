@@ -11,7 +11,18 @@ class MultiRestaurantBot {
         this.db = new Database();
         this.restaurants = new Map(); // Map<restaurantId, BotInstance>
         this.setupWebServer();
-        this.loadRestaurants();
+        this.initializeRestaurants();
+    }
+    
+    async initializeRestaurants() {
+        // Wait for database to be fully initialized
+        console.log('🔄 [INIT] Waiting for database initialization...');
+        
+        // Wait a bit for database init to complete
+        setTimeout(async () => {
+            console.log('🔄 [INIT] Starting restaurant loading...');
+            await this.loadRestaurants();
+        }, 1000);
     }
 
     setupWebServer() {
@@ -1138,18 +1149,58 @@ class MultiRestaurantBot {
 
     async loadRestaurants() {
         try {
+            console.log('🔄 [LOAD] Iniciando carregamento de restaurantes...');
+            console.log('🔄 [LOAD] Database instance exists:', !!this.db);
+            console.log('🔄 [LOAD] Database getAllRestaurants method exists:', typeof this.db.getAllRestaurants);
+            
             const restaurants = await this.db.getAllRestaurants();
+            console.log(`🔄 [LOAD] Database returned:`, restaurants);
             console.log(`📋 Carregados ${restaurants.length} restaurantes`);
             
-            // Auto-start restaurantes que estavam ativos
-            for (const restaurant of restaurants) {
-                if (restaurant.session_active) {
-                    console.log(`🔄 Auto-iniciando bot: ${restaurant.name}`);
-                    await this.startRestaurantBot(restaurant.id);
+            if (restaurants.length > 0) {
+                console.log('🔄 [LOAD] Restaurant details:');
+                restaurants.forEach((restaurant, index) => {
+                    console.log(`  ${index + 1}. ID: ${restaurant.id}`);
+                    console.log(`     Nome: ${restaurant.name}`);
+                    console.log(`     Menu: ${restaurant.menu_url}`);
+                    console.log(`     Ativo: ${restaurant.session_active}`);
+                });
+                
+                // Auto-start restaurantes que estavam ativos
+                for (const restaurant of restaurants) {
+                    if (restaurant.session_active) {
+                        console.log(`🔄 Auto-iniciando bot: ${restaurant.name}`);
+                        await this.startRestaurantBot(restaurant.id);
+                    }
+                }
+            } else {
+                console.log('⚠️ [LOAD] Nenhum restaurante encontrado no banco de dados');
+                console.log('⚠️ [LOAD] Verificando se dados existem no arquivo...');
+                
+                // Try to manually check the file
+                const fs = require('fs');
+                const path = require('path');
+                const dbPath = path.join(__dirname, 'restaurants-data.json');
+                
+                try {
+                    const fileContent = fs.readFileSync(dbPath, 'utf8');
+                    console.log('⚠️ [LOAD] Arquivo restaurants-data.json existe');
+                    console.log('⚠️ [LOAD] Tamanho do arquivo:', fileContent.length, 'bytes');
+                    console.log('⚠️ [LOAD] Conteúdo preview:', fileContent.substring(0, 200));
+                    
+                    const parsed = JSON.parse(fileContent);
+                    console.log('⚠️ [LOAD] Dados parseados:', parsed);
+                    console.log('⚠️ [LOAD] Restaurantes no arquivo:', parsed.restaurants?.length || 0);
+                } catch (fileError) {
+                    console.error('⚠️ [LOAD] Erro ao ler arquivo diretamente:', fileError);
                 }
             }
+            
+            console.log('✅ [LOAD] Carregamento de restaurantes concluído');
+            
         } catch (error) {
-            console.error('❌ Erro ao carregar restaurantes:', error);
+            console.error('❌ [LOAD] Erro ao carregar restaurantes:', error);
+            console.error('❌ [LOAD] Stack trace:', error.stack);
         }
     }
 
