@@ -283,11 +283,38 @@
                     retryCount = 0;
                 });
 
-                socket.on('qr', (qrData) => {
-                    console.log('📱 QR Code recebido via WebSocket');
-                    qrcodeDiv.innerHTML = `<img src="${qrData}" alt="QR Code WhatsApp" style="max-width: 100%; height: auto;" />`;
-                    qrContainer.classList.add('active');
-                    updateStatus('📱 Escaneie o QR Code com seu WhatsApp', 'waiting');
+                socket.on('qr', (data) => {
+                    console.log('🎯 [INDEX] QR Code recebido via WebSocket');
+                    console.log('🎯 [INDEX] Data received:', data);
+                    console.log('🎯 [INDEX] Data type:', typeof data);
+                    
+                    // Handle both old format (direct qrData) and new format (object with qrData)
+                    let qrImageData;
+                    if (typeof data === 'string') {
+                        qrImageData = data;
+                        console.log('🎯 [INDEX] Using direct qrData format');
+                    } else if (data && data.qrData) {
+                        qrImageData = data.qrData;
+                        console.log('🎯 [INDEX] Using object.qrData format');
+                        console.log('🎯 [INDEX] Restaurant ID:', data.restaurantId);
+                    } else {
+                        console.error('🎯 [INDEX ERROR] Invalid QR data format:', data);
+                        updateStatus('❌ Erro: QR Code inválido recebido', 'error');
+                        return;
+                    }
+                    
+                    console.log('🎯 [INDEX] QR image data length:', qrImageData?.length);
+                    console.log('🎯 [INDEX] QR image data preview:', qrImageData?.substring(0, 50));
+                    
+                    if (qrImageData && qrImageData.startsWith('data:image/')) {
+                        qrcodeDiv.innerHTML = `<img src="${qrImageData}" alt="QR Code WhatsApp" style="max-width: 100%; height: auto; display: block; margin: 0 auto;" />`;
+                        qrContainer.classList.add('active');
+                        updateStatus('📱 Escaneie o QR Code com seu WhatsApp', 'waiting');
+                        console.log('🎯 [INDEX] ✅ QR Code displayed successfully');
+                    } else {
+                        console.error('🎯 [INDEX ERROR] QR data is not a valid base64 image');
+                        updateStatus('❌ Erro: QR Code não é uma imagem válida', 'error');
+                    }
                 });
 
                 socket.on('ready', () => {
