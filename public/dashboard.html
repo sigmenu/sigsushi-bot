@@ -257,6 +257,19 @@
 
         .qr-code {
             margin: 20px 0;
+            min-height: 200px;
+            border: 2px dashed #ccc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .qr-code img {
+            max-width: 100% !important;
+            height: auto !important;
+            display: block !important;
+            z-index: 10 !important;
         }
 
         .close-btn {
@@ -322,6 +335,7 @@
                 <button class="btn btn-secondary" onclick="refreshData()">🔄 Atualizar</button>
                 <button class="btn btn-warning" onclick="testQR()">🧪 Testar QR</button>
                 <button class="btn btn-info" onclick="testWebSocket()">📡 Testar WS</button>
+                <button class="btn btn-success" onclick="testQRDisplay()">🎯 Teste Direto QR</button>
             </div>
         </div>
     </div>
@@ -425,8 +439,10 @@
                 console.log('🔥 [FRONTEND] Restaurant ID:', data.restaurantId);
                 console.log('🔥 [FRONTEND] QR Data length:', data.qrData?.length);
                 console.log('🔥 [FRONTEND] Debug flag:', data.debug);
+                console.log('🔥 [FRONTEND] Current QR Restaurant:', currentQRRestaurant);
                 
-                showQRCode(data.restaurantId, data.qrData);
+                // CRITICAL FIX: Always show QR, don't depend on currentQRRestaurant
+                showQRCode(data.restaurantId, data.qrData, true); // Force display
                 updateRestaurantStatus(data.restaurantId, 'connecting');
             });
 
@@ -684,11 +700,53 @@
             socket.emit('subscribe_restaurant', restaurantId);
         }
 
-        function showQRCode(restaurantId, qrData) {
-            if (currentQRRestaurant === restaurantId) {
-                document.getElementById('qr-code-container').innerHTML = `
-                    <img src="${qrData}" alt="QR Code WhatsApp" style="max-width: 100%;" />
-                `;
+        function showQRCode(restaurantId, qrData, forceDisplay = false) {
+            console.log('🔥 [QR DISPLAY 1] showQRCode called');
+            console.log('🔥 [QR DISPLAY 2] Restaurant ID:', restaurantId);
+            console.log('🔥 [QR DISPLAY 3] QR Data length:', qrData?.length);
+            console.log('🔥 [QR DISPLAY 4] Force display:', forceDisplay);
+            console.log('🔥 [QR DISPLAY 5] Current QR Restaurant:', currentQRRestaurant);
+            console.log('🔥 [QR DISPLAY 6] QR Data preview:', qrData?.substring(0, 50));
+            
+            // CRITICAL FIX: Show QR regardless of currentQRRestaurant when forced or when modal is open
+            const shouldShow = forceDisplay || currentQRRestaurant === restaurantId || currentQRRestaurant === null;
+            
+            console.log('🔥 [QR DISPLAY 7] Should show QR:', shouldShow);
+            
+            if (shouldShow) {
+                const qrContainer = document.getElementById('qr-code-container');
+                console.log('🔥 [QR DISPLAY 8] QR Container found:', !!qrContainer);
+                
+                if (qrContainer) {
+                    // If no specific restaurant is being viewed, open modal for this one
+                    if (!currentQRRestaurant) {
+                        console.log('🔥 [QR DISPLAY 9] Auto-opening modal for:', restaurantId);
+                        currentQRRestaurant = restaurantId;
+                        document.getElementById('qr-restaurant-name').textContent = `Restaurant ${restaurantId} - WhatsApp`;
+                        document.getElementById('qr-modal').style.display = 'flex';
+                    }
+                    
+                    const qrImageHTML = `
+                        <img src="${qrData}" alt="QR Code WhatsApp" style="max-width: 100%; height: auto; display: block; margin: 0 auto;" />
+                        <p style="margin-top: 10px; font-size: 12px; color: #666;">QR gerado: ${new Date().toLocaleTimeString()}</p>
+                    `;
+                    
+                    qrContainer.innerHTML = qrImageHTML;
+                    console.log('🔥 [QR DISPLAY 10] ✅ QR Code inserido no DOM!');
+                    
+                    // Verify insertion
+                    const img = qrContainer.querySelector('img');
+                    console.log('🔥 [QR DISPLAY 11] Image element found:', !!img);
+                    if (img) {
+                        console.log('🔥 [QR DISPLAY 12] Image src length:', img.src.length);
+                        img.onload = () => console.log('🔥 [QR DISPLAY 13] ✅ Image loaded successfully');
+                        img.onerror = (e) => console.error('🔥 [QR DISPLAY ERROR] Image failed to load:', e);
+                    }
+                } else {
+                    console.error('🔥 [QR DISPLAY ERROR] QR Container not found!');
+                }
+            } else {
+                console.log('🔥 [QR DISPLAY 14] QR not displayed - conditions not met');
             }
         }
 
@@ -709,13 +767,26 @@
         // FUNÇÕES DE TESTE PARA DEBUG
         async function testQR() {
             console.log('🔥 [TEST] Testando geração de QR...');
+            
+            // Auto-open modal first to ensure container exists
+            console.log('🔥 [TEST] Auto-opening QR modal...');
+            currentQRRestaurant = 'test-restaurant';
+            document.getElementById('qr-restaurant-name').textContent = 'Test Restaurant - WhatsApp';
+            document.getElementById('qr-modal').style.display = 'flex';
+            
             try {
                 const response = await fetch('/test-qr/test-restaurant');
                 const result = await response.json();
                 console.log('🔥 [TEST] Resultado do teste QR:', result);
                 
                 if (result.success) {
-                    alert(`QR de teste gerado! Clientes notificados: ${result.clientsNotified}`);
+                    console.log('🔥 [TEST] QR de teste gerado com sucesso!');
+                    console.log('🔥 [TEST] Aguardando QR via WebSocket...');
+                    
+                    // Show success message but keep modal open for QR
+                    setTimeout(() => {
+                        console.log('🔥 [TEST] Se QR não apareceu em 3s, há problema na exibição');
+                    }, 3000);
                 } else {
                     alert('Erro no teste QR: ' + result.error);
                 }
@@ -723,6 +794,17 @@
                 console.error('🔥 [TEST] Erro no teste QR:', error);
                 alert('Erro na requisição de teste QR');
             }
+        }
+
+        // TESTE DIRETO DE EXIBIÇÃO QR
+        function testQRDisplay() {
+            console.log('🔥 [TEST QR DISPLAY] Testando exibição direta...');
+            
+            // Generate a simple test QR
+            const testQRData = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+            
+            console.log('🔥 [TEST QR DISPLAY] Testando com QR simples...');
+            showQRCode('test-display', testQRData, true);
         }
 
         async function testWebSocket() {
