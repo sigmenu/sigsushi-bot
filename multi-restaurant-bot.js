@@ -138,6 +138,20 @@ class MultiRestaurantBot {
             socket.on('subscribe_restaurant', (restaurantId) => {
                 socket.join(`restaurant_${restaurantId}`);
                 console.log(`📱 Cliente inscrito no restaurante: ${restaurantId}`);
+                
+                // Envia status atual do restaurante quando cliente se inscreve
+                const botInstance = this.restaurants.get(restaurantId);
+                if (botInstance && botInstance.state === 'qr_ready') {
+                    // Se há QR disponível, reenviar
+                    socket.emit('qr_status', {
+                        restaurantId: restaurantId,
+                        state: botInstance.state
+                    });
+                }
+            });
+
+            socket.on('disconnect', () => {
+                console.log('🌐 Cliente desconectado do dashboard');
             });
         });
     }
@@ -246,9 +260,26 @@ class RestaurantBotInstance {
                     '--single-process',
                     '--disable-gpu',
                     '--disable-web-security',
-                    '--disable-features=VizDisplayCompositor'
+                    '--disable-features=VizDisplayCompositor',
+                    '--disable-background-timer-throttling',
+                    '--disable-backgrounding-occluded-windows',
+                    '--disable-renderer-backgrounding',
+                    '--disable-extensions',
+                    '--disable-plugins',
+                    '--disable-default-apps',
+                    '--disable-hang-monitor',
+                    '--disable-prompt-on-repost',
+                    '--disable-sync',
+                    '--disable-translate',
+                    '--metrics-recording-only',
+                    '--no-default-browser-check',
+                    '--safebrowsing-disable-auto-update',
+                    '--mute-audio',
+                    '--disable-component-extensions-with-background-pages',
+                    '--disable-ipc-flooding-protection'
                 ],
-                timeout: 60000
+                timeout: 120000,
+                executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined
             }
         });
 
@@ -261,13 +292,44 @@ class RestaurantBotInstance {
             this.state = 'qr_ready';
             
             try {
-                const qrImage = await QRCode.toDataURL(qr, { width: 300, margin: 2 });
+                // Gera QR Code com configurações otimizadas para VPS
+                const qrImage = await QRCode.toDataURL(qr, { 
+                    width: 300, 
+                    margin: 2,
+                    errorCorrectionLevel: 'M',
+                    type: 'image/png',
+                    quality: 0.92,
+                    color: {
+                        dark: '#000000',
+                        light: '#FFFFFF'
+                    }
+                });
+                
+                // Emite QR para todos os clientes conectados (não apenas room específico)
+                this.io.emit('qr', {
+                    restaurantId: this.restaurant.id,
+                    qrData: qrImage
+                });
+                
+                // Também emite para room específico
                 this.io.to(`restaurant_${this.restaurant.id}`).emit('qr', {
                     restaurantId: this.restaurant.id,
                     qrData: qrImage
                 });
+                
+                console.log(`✅ QR Code enviado via WebSocket para: ${this.restaurant.name}`);
             } catch (error) {
                 console.error('❌ Erro ao gerar QR Code:', error);
+                // Fallback: tenta gerar QR mais simples
+                try {
+                    const fallbackQR = await QRCode.toDataURL(qr);
+                    this.io.emit('qr', {
+                        restaurantId: this.restaurant.id,
+                        qrData: fallbackQR
+                    });
+                } catch (fallbackError) {
+                    console.error('❌ Erro no fallback QR:', fallbackError);
+                }
             }
         });
 
